@@ -356,6 +356,9 @@ const fr: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "La voix n’est pas possible dans ce navigateur. Essayez Chrome ou Safari, ou utilisez le micro de votre clavier.",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "Le micro est bloqué. Autorisez le micro dans votre navigateur, ou utilisez le micro de votre clavier.",
   "I didn’t hear anything. Tap the microphone and try again.": "Je n’ai rien entendu. Touchez le micro et réessayez.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "L'assistant répond avec les chiffres de cette fiche de paie.",
+  "Wait for the current answer to finish.": "Attendez que la réponse en cours se termine, s'il vous plaît.",
 }
 
 export default fr

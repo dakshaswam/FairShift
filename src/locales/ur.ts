@@ -356,6 +356,9 @@ const ur: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "اس براؤزر میں بول کر لکھنا ممکن نہیں ہے۔ Chrome یا Safari آزمائیں، یا اپنے کی بورڈ کا مائیک استعمال کریں۔",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "مائیک بند ہے۔ اپنے براؤزر میں مائیک کی اجازت دیں، یا اپنے کی بورڈ کا مائیک استعمال کریں۔",
   "I didn’t hear anything. Tap the microphone and try again.": "مجھے کچھ سنائی نہیں دیا۔ مائیک دبائیں اور دوبارہ کوشش کریں۔",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "اسسٹنٹ اسی پے سلپ کے نمبروں سے جواب دیتا ہے۔",
+  "Wait for the current answer to finish.": "موجودہ جواب ختم ہونے تک انتظار کریں۔",
 }
 
 export default ur

@@ -356,6 +356,9 @@ const zh: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "这个浏览器不支持语音输入。试试 Chrome 或 Safari，或用键盘上的麦克风。",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "麦克风被关了。请在浏览器里打开麦克风，或者用键盘上的麦克风。",
   "I didn’t hear anything. Tap the microphone and try again.": "没听到声音。点一下麦克风再试一次。",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "小助手会用这张工资单上的数字回答您。",
+  "Wait for the current answer to finish.": "请等现在的回答先说完。",
 }
 
 export default zh

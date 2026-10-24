@@ -205,3 +205,32 @@ def test_process_uploads_redacts_and_sends_without_approval(envelope):
     assert result["sent_text"] == "Gross Pay: 10.00"
     assert result["redaction_retries"] == 1 and result["forced"] is False
     assert {"stage": "automatic_send", "status": "passed", "mode": "re-redacted"} in result["trace"]
+
+
+def test_process_translates_the_summary_and_notes_for_the_worker(envelope):
+    from fairshift_paystub.schema import Paystub
+
+    stub = Paystub.model_validate(envelope["paystub"])
+    translate = Mock(side_effect=lambda texts, language: [f"[{language}] {text}" for text in texts])
+    app = PaystubApplication(prepare=lambda document, suffix: "Gross Pay: 10.00",
+                             auto_send=Mock(return_value=(stub, "Gross Pay: 10.00", 0, False)),
+                             translate=translate, source="mocked")
+    result = app.process_document(b"%PDF", ".pdf", "Hindi")
+    assert result["assistant_message"].startswith("[Hindi] ")
+    assert result["warnings_display"] == [f"[Hindi] {note}" for note in stub.warnings]
+    # The validated paystub keeps the English notes the safety checks ran on.
+    assert result["paystub"]["warnings"] == stub.warnings
+    english = app.process_document(b"%PDF", ".pdf", "English")
+    assert translate.call_count == 1 and not english["assistant_message"].startswith("[")
+
+
+def test_process_falls_back_to_english_if_translation_fails(envelope):
+    from fairshift_paystub.errors import ModelError
+    from fairshift_paystub.schema import Paystub
+
+    stub = Paystub.model_validate(envelope["paystub"])
+    app = PaystubApplication(prepare=lambda document, suffix: "Gross Pay: 10.00",
+                             auto_send=Mock(return_value=(stub, "Gross Pay: 10.00", 0, False)),
+                             translate=Mock(side_effect=ModelError("busy")), source="mocked")
+    result = app.process_document(b"%PDF", ".pdf", "Korean")
+    assert result["warnings_display"] == list(stub.warnings)

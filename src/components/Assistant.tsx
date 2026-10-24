@@ -129,12 +129,15 @@ type SpeechRecognitionLike = {
 export function Assistant({
   language,
   initialMode = "ask",
+  initialQuestion,
   paystub,
   onLanguageChange,
   onUploadPaystub,
 }: {
   language: string
   initialMode?: AssistantMode
+  // Sent as soon as the chat opens, e.g. a question typed in the pay stub panel.
+  initialQuestion?: string
   paystub: Paystub | null
   onLanguageChange: (language: string) => void
   onUploadPaystub: () => void
@@ -272,15 +275,16 @@ export function Assistant({
     }
   }
 
+  // Server messages are English, so the worker always sees the translated text.
   const errorText = (event: Extract<AssistantEvent, { type: "error" }>) =>
-    event.message ??
-    {
+    ({
       refusal: t.errRefusal,
       rate_limited: t.errRate,
+      busy: t.errBusy,
       not_configured: t.errNotConfigured,
       unavailable: t.errGeneric,
       error: t.errGeneric,
-    }[event.code]
+    })[event.code]
 
   const send = async (raw: string) => {
     if (busy) return
@@ -374,6 +378,14 @@ export function Assistant({
       inputRef.current?.focus()
     }
   }
+
+  useEffect(() => {
+    if (!initialQuestion) return
+    // A timer (cleared on unmount) so React's dev-mode double mount sends it once.
+    const timer = setTimeout(() => send(initialQuestion), 0)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const retry = (item: BotItem) => {
     if (!item.retry) return

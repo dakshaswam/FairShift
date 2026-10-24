@@ -10,6 +10,7 @@ import express, { Router } from "express"
 import { requireUser } from "./auth.js"
 import { CATEGORIES, findHelp } from "./help.js"
 import { comparePay } from "./jobs.js"
+import { detectMessageLanguage, looksLikeWrongLanguage } from "./language-detect.js"
 import { LANGUAGES, resolveLanguage } from "./languages.js"
 import { checkPay } from "./payrules.js"
 
@@ -30,9 +31,10 @@ const PAYSTUB_TEXT_FIELDS = [
 const SYSTEM_PROMPT = `You are the FairShift assistant, inside an app that helps immigrant and limited-English workers in the United States make sure they are paid fairly. You help workers understand pay stubs, hours, overtime, minimum wage and tipped-worker pay, and what to do next.
 
 STYLE
-- Reply in the language named in the latest "Reply language" note, even if the worker writes in another. Use plain, everyday words, short sentences and a warm, respectful tone. Aim for a reading level a 12-year-old could follow. Avoid legal jargon; when you must use a term (for example "overtime" or "gross pay"), explain it in a few words.
+- Write every reply entirely in the reply language named in the latest app note, in that language's own writing system (Devanagari for Hindi, Hangul for Korean, Arabic script for Arabic and Urdu, and so on). Many workers read little or no English, so never answer in English unless the reply language is English, never write a language in Latin letters (no romanized Hindi), and don't mix in English words. The only exceptions are names of places and organizations, dollar amounts and phone numbers. Don't announce or explain which language you are using; just answer.
+- Use plain, everyday words, short sentences and a warm, respectful tone. Aim for a reading level a 12-year-old could follow. Avoid legal jargon; when you must use a term (for example "overtime" or "gross pay"), explain it in a few words of the reply language.
 - Keep replies short. Ask at most one question at a time. Use short lists when explaining several items.
-- If the worker asks to use a different language (for example "speak Korean" or "en español"), or writes in a language other than the current reply language and seems to want it, call the set_language tool with the language name in English, then continue your reply in the new language.
+- If the worker asks to use a different language (for example "speak Korean" or "en español"), or writes in a language other than the reply language that isn't English, call the set_language tool with the language name in English, then write your whole reply in that language.
 
 PAY STUBS
 - You never see the pay stub itself. When the worker has uploaded one, the app note includes the fields FairShift extracted from it after the worker removed personal details and approved the text. A null field means it could not be read, not that it was zero.
@@ -236,7 +238,7 @@ const compactJob = (job) => ({
 })
 
 // Runs one tool call. `emit` sends a card or app event to the browser.
-async function runTool(name, input, { profile, replyLanguage, emit }) {
+async function runTool(name, input, { profile, replyLanguage, emit, onLanguage }) {
   switch (name) {
     case "check_pay": {
       const result = checkPay(validateCheckPay(input))
@@ -253,6 +255,7 @@ async function runTool(name, input, { profile, replyLanguage, emit }) {
       // native name; any other language changes the replies only.
       const appLanguage = LANGUAGES[code]?.name === name ? LANGUAGES[code].native : null
       emit({ type: "language", language: name, appLanguage })
+      onLanguage?.(name)
       return { ok: true, reply_language: name, app_display_switched: Boolean(appLanguage) }
     }
 
@@ -324,12 +327,14 @@ function cleanPaystub(input) {
 // --- per-turn context note (sent as a mid-conversation system message) ---
 
 function contextNote({ replyLanguage, profile, mode, paystub }) {
+  const known = resolveLanguage(replyLanguage)
+  const native = known.name === replyLanguage && known.native !== replyLanguage ? known.native : null
   const saved = []
   if (profile?.occupation) saved.push(`job: ${profile.occupation}`)
   if (profile?.location) saved.push(`city: ${profile.location}`)
   if (profile?.hourlyWage) saved.push(`hourly pay: $${profile.hourlyWage}`)
   return [
-    `Reply language: ${replyLanguage}.`,
+    `Reply language: ${replyLanguage}${native ? ` (${native})` : ""}. Write your whole reply in ${replyLanguage}, in its own script. No English.`,
     saved.length ? `Saved in the worker's FairShift profile: ${saved.join("; ")}.` : "The worker has not saved a job or city yet.",
     paystub
       ? `Pay stub fields the worker approved (extracted from their upload, personal details removed): ${JSON.stringify(paystub)}`
@@ -455,7 +460,13 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
   conversation.busy = true
 
   const profile = req.user.profile
-  const replyLanguage = languageName(body.replyLanguage || profile?.language)
+  // The worker's language is the one they chose (at sign-up or in the picker). If
+  // their message is clearly written in another language's script, follow that.
+  let replyLanguage = languageName(body.replyLanguage || profile?.language)
+  const chosen = resolveLanguage(replyLanguage)
+  const detected = detectMessageLanguage(text, chosen.code)
+  const switched = detected && detected !== chosen.code && LANGUAGES[detected]
+  if (switched) replyLanguage = switched.name
   const effort = EFFORT[body.speed] ?? EFFORT.fast
 
   res.writeHead(200, {
@@ -468,6 +479,7 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
     if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`)
   }
   emit({ type: "conversation", id: conversation.id })
+  if (switched) emit({ type: "language", language: switched.name, appLanguage: switched.native })
 
   const controller = new AbortController()
   res.on("close", () => controller.abort())
@@ -480,6 +492,7 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
   ]
 
   let committed = ""
+  let rewrites = 0
   try {
     if (!process.env.MUSE_API_KEY) throw new MuseError(401, "MUSE_API_KEY is not set")
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -494,6 +507,7 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
       if (refusal && !message.content && !message.tool_calls) {
         throw Object.assign(new Error("refusal"), { code: "refusal" })
       }
+      const before = committed
       if (message.content) {
         committed = [committed, message.content].filter(Boolean).join("\n\n")
         emit({ type: "text", text: committed })
@@ -501,6 +515,18 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
       turn.push(message)
 
       const toolCalls = message.tool_calls ?? []
+      // A final answer in the wrong language (usually English) is rewritten once.
+      const code = resolveLanguage(replyLanguage).code
+      if (toolCalls.length === 0 && rewrites === 0 && looksLikeWrongLanguage(message.content, code)) {
+        rewrites++
+        committed = before
+        emit({ type: "text", text: committed })
+        turn.push({
+          role: "system",
+          content: `Your last reply was not written in ${replyLanguage}. Rewrite the same answer completely in ${replyLanguage}, in its own script, with no English. Don't mention the rewrite.`,
+        })
+        continue
+      }
       if (toolCalls.length === 0) {
         if (finishReason === "length" && !message.content) throw new Error("Muse ran out of tokens")
         conversation.messages.push(...turn)
@@ -514,7 +540,12 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
       const results = await Promise.all(
         toolCalls.map(async (call) => {
           try {
-            const output = await runTool(call.function.name, parseArguments(call), { profile, replyLanguage, emit })
+            const output = await runTool(call.function.name, parseArguments(call), {
+              profile,
+              replyLanguage,
+              emit,
+              onLanguage: (name) => (replyLanguage = name),
+            })
             return { role: "tool", tool_call_id: call.id, content: JSON.stringify(output) }
           } catch (error) {
             const known = error instanceof ToolInputError

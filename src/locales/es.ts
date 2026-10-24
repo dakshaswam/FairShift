@@ -357,6 +357,9 @@ const es: Record<string, string> = {
   "Ask about hours, rates, overtime or deductions": "Pregunte sobre horas, pagos, horas extra o descuentos",
   "Upload a paystub first": "Primero suba un recibo de pago",
   "Quick answers use this upload’s numbers, without another Muse request.": "Las respuestas rápidas usan los números de este documento, sin otra petición a Muse.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "El asistente responde usando los números de este recibo de pago.",
+  "Wait for the current answer to finish.": "Por favor espere a que termine la respuesta.",
 }
 
 export default es

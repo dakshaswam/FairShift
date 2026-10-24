@@ -117,6 +117,7 @@ function AppInner({
   const [drawer, setDrawer] =
     useState<"stub" | "assistant" | "claim" | "lawyer" | "jobs" | null>(null)
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("stub")
+  const [assistantQuestion, setAssistantQuestion] = useState<string | undefined>()
   const [paystubResult, setPaystubResult] = useState<PaystubResult | null>(null)
   const currentStub = paystubResult?.paystub ?? null
 
@@ -179,8 +180,9 @@ function AppInner({
     }
   }
 
-  const openAssistant = (mode: AssistantMode) => {
+  const openAssistant = (mode: AssistantMode, question?: string) => {
     setAssistantMode(mode)
+    setAssistantQuestion(question)
     setDrawer("assistant")
   }
 
@@ -811,7 +813,8 @@ function AppInner({
               <PaystubPanel
                 result={paystubResult}
                 onResult={setPaystubResult}
-                onAskAssistant={() => openAssistant("stub")}
+                onAskAssistant={(question) => openAssistant("stub", question)}
+                language={language}
                 hourlyWage={profile?.hourlyWage}
                 onEditWage={() => setAuthStep("editOccupation")}
               />
@@ -821,6 +824,7 @@ function AppInner({
               <Assistant
                 language={language}
                 initialMode={assistantMode}
+                initialQuestion={assistantQuestion}
                 paystub={currentStub}
                 onLanguageChange={changeLanguage}
                 onUploadPaystub={() => setDrawer("stub")}

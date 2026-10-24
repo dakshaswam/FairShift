@@ -356,6 +356,9 @@ const bn: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "এই ব্রাউজারে মুখে বলা টাইপ হয় না। Chrome বা Safari ব্যবহার করুন, বা আপনার কিবোর্ডের মাইক্রোফোন ব্যবহার করুন।",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "মাইক্রোফোন বন্ধ আছে। ব্রাউজারে মাইক্রোফোনের অনুমতি দিন, বা কিবোর্ডের মাইক্রোফোন ব্যবহার করুন।",
   "I didn’t hear anything. Tap the microphone and try again.": "কিছু শুনতে পাইনি। মাইক্রোফোনে চাপ দিয়ে আবার চেষ্টা করুন।",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "সহকারী এই বেতনের স্লিপের হিসাবগুলো দিয়ে উত্তর দেবে।",
+  "Wait for the current answer to finish.": "দয়া করে এখনকার উত্তর শেষ হওয়া পর্যন্ত অপেক্ষা করুন।",
 }
 
 export default bn

@@ -242,7 +242,7 @@ export type AssistantEvent =
   | { type: "done" }
   | {
       type: "error"
-      code: "error" | "refusal" | "rate_limited" | "not_configured" | "unavailable"
+      code: "error" | "refusal" | "rate_limited" | "busy" | "not_configured" | "unavailable"
       message?: string
     }
 
@@ -270,7 +270,7 @@ export async function chatWithAssistant(
     const data = await response.json().catch(() => ({}))
     onEvent({
       type: "error",
-      code: response.status === 429 ? "rate_limited" : "error",
+      code: response.status === 429 ? "rate_limited" : response.status === 409 ? "busy" : "error",
       message: data.error,
     })
     return

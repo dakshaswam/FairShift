@@ -356,6 +356,9 @@ const ar: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "الكتابة بالصوت غير مدعومة في هذا المتصفح. جرّب Chrome أو Safari، أو استخدم ميكروفون لوحة المفاتيح.",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "الميكروفون محظور. اسمح بالميكروفون في المتصفح، أو استخدم ميكروفون لوحة المفاتيح.",
   "I didn’t hear anything. Tap the microphone and try again.": "لم أسمع شيئاً. اضغط على الميكروفون وحاول مرة أخرى.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "المساعد يجيب باستخدام الأرقام الموجودة في ورقة الراتب هذه.",
+  "Wait for the current answer to finish.": "من فضلك انتظر حتى ينتهي الرد الحالي.",
 }
 
 export default ar

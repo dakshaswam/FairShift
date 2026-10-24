@@ -356,6 +356,9 @@ const ko: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "이 브라우저에서는 음성 입력이 안 돼요. Chrome이나 Safari를 쓰시거나 키보드의 마이크를 쓰세요.",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "마이크가 막혀 있어요. 브라우저에서 마이크를 허용하시거나 키보드의 마이크를 쓰세요.",
   "I didn’t hear anything. Tap the microphone and try again.": "아무 소리도 못 들었어요. 마이크를 누르고 다시 해보세요.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "도우미가 이 월급 종이에 적힌 숫자를 보고 답해 드립니다.",
+  "Wait for the current answer to finish.": "지금 답이 다 끝날 때까지 기다려 주세요.",
 }
 
 export default ko

@@ -357,6 +357,9 @@ const vi: Record<string, string> = {
   "Ask about hours, rates, overtime or deductions": "Hỏi về số giờ, mức lương, làm thêm giờ hoặc khoản trừ",
   "Upload a paystub first": "Hãy tải phiếu lương lên trước",
   "Quick answers use this upload’s numbers, without another Muse request.": "Trả lời nhanh dùng các số của giấy này, không cần gửi thêm cho Muse.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "Trợ lý trả lời theo các con số trên phiếu lương này.",
+  "Wait for the current answer to finish.": "Xin vui lòng đợi câu trả lời này xong.",
 }
 
 export default vi

@@ -79,6 +79,10 @@ const dictionaries: Record<string, Record<string, string>> = {
 const optionFor = (language: string) =>
   LANGUAGE_OPTIONS.find((option) => option.label === language)
 
+// English name of an app language ("हिन्दी" → "Hindi"), for APIs that need ASCII.
+export const languageName = (language: string) =>
+  optionFor(language)?.name ?? "English"
+
 export const speechLang = (language: string) =>
   optionFor(language)?.speech ?? "en-US"
 

@@ -30,6 +30,7 @@ export function assistantStrings(t: Translate) {
     thinking: t("Thinking"),
     errGeneric: t("That message didn’t go through. Send it again."),
     retry: t("Try again"),
+    errBusy: t("Wait for the current answer to finish."),
     errRate: t("Too many requests. Wait a moment and try again."),
     errNotConfigured: t("The assistant isn’t set up yet. Ask the app team to add the AI key."),
     errRefusal: t("I can’t help with that one. Try asking another way, or call the free helpline below."),

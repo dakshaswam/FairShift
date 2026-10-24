@@ -356,6 +356,9 @@ const tl: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "Hindi suportado ang voice typing sa browser na ito. Subukan ang Chrome o Safari, o gamitin ang mikropono sa iyong keyboard.",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "Naka-block ang mikropono. Payagan ang mikropono sa iyong browser, o gamitin ang mikropono sa iyong keyboard.",
   "I didn’t hear anything. Tap the microphone and try again.": "Wala akong narinig. Pindutin ang mikropono at subukan ulit.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "Sumasagot ang assistant gamit ang mga numero sa pay stub na ito.",
+  "Wait for the current answer to finish.": "Pakihintay po na matapos ang kasalukuyang sagot.",
 }
 
 export default tl

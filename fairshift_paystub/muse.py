@@ -73,31 +73,13 @@ def _log_diagnostics(details: dict[str, Any], *, failed: bool) -> None:
             _LOGGER.info("Muse request diagnostics: %s", message)
 
 
-def request_extraction(approved_text: str, *, api_key: str | None = None,
-                       model: str | None = None, client=None) -> str:
-    """Internal boundary; pipeline must check PII and obtain approval first.
-
-    `client` is an httpx.Client, injectable for tests.
-    """
+def _complete(payload: dict, *, api_key: str | None, model: str | None, client) -> str:
+    """POST one Chat Completions request with retries; return the reply text."""
     key = api_key if api_key is not None else os.environ.get("MUSE_API_KEY")
-    chosen_model = model or os.environ.get("MUSE_MODEL") or DEFAULT_MODEL
     if not key or not key.strip():
         raise ModelError("Set MUSE_API_KEY in your local .env or environment. Never paste it into chat.")
-
-    body = json.dumps({
-        "model": chosen_model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
-            {"role": "user", "content": approved_text},
-        ],
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {"name": "paystub_extraction", "strict": True, "schema": extraction_json_schema()},
-        },
-        # Muse reasons before answering; leave room for both.
-        "reasoning_effort": "medium",
-        "max_tokens": 16000,
-    }, ensure_ascii=False).encode("utf-8")
+    payload = {"model": model or os.environ.get("MUSE_MODEL") or DEFAULT_MODEL, **payload}
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     details: dict[str, Any] = {"status_code": None, "finish_reason": None, "attempts": 0,
                                "request_body_bytes": len(body), "error_response_body": None}
 
@@ -154,3 +136,69 @@ def request_extraction(approved_text: str, *, api_key: str | None = None,
         raise ModelError("Muse declined or returned no JSON. Review the redacted text and try again.")
     _log_diagnostics(details, failed=False)
     return text
+
+
+def request_extraction(approved_text: str, *, api_key: str | None = None,
+                       model: str | None = None, client=None) -> str:
+    """Internal boundary; pipeline must check PII and obtain approval first.
+
+    `client` is an httpx.Client, injectable for tests.
+    """
+    return _complete({
+        "messages": [
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": approved_text},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "paystub_extraction", "strict": True, "schema": extraction_json_schema()},
+        },
+        # Muse reasons before answering; leave room for both.
+        "reasoning_effort": "medium",
+        "max_tokens": 16000,
+    }, api_key=api_key, model=model, client=client)
+
+
+TRANSLATE_INSTRUCTION = """Translate each item for a worker who reads {language} and may read little or
+no English. Write in {language}'s own script, in plain, everyday words. Keep every number,
+dollar amount, date, phone number and [PLACEHOLDER] exactly as written. Keep names of
+employers and organizations as written. Return one translation for every item, by index."""
+
+
+def translate_texts(texts: list[str], language: str, *, api_key: str | None = None,
+                    model: str | None = None, client=None) -> list[str]:
+    """Translate display text (summary, review notes) after extraction and its checks.
+
+    The pipeline's safety checks run on the English text; this only changes what the
+    worker sees. Raises ModelError if any item comes back missing.
+    """
+    if not texts:
+        return []
+    reply = _complete({
+        "messages": [
+            {"role": "system", "content": TRANSLATE_INSTRUCTION.format(language=language)},
+            {"role": "user", "content": json.dumps([{"i": i, "text": t} for i, t in enumerate(texts)], ensure_ascii=False)},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "translations", "strict": True, "schema": {
+                "type": "object",
+                "properties": {"items": {"type": "array", "items": {
+                    "type": "object",
+                    "properties": {"i": {"type": "integer"}, "text": {"type": "string"}},
+                    "required": ["i", "text"], "additionalProperties": False,
+                }}},
+                "required": ["items"], "additionalProperties": False,
+            }},
+        },
+        "reasoning_effort": "low",
+        "max_tokens": 16000,
+    }, api_key=api_key, model=model, client=client)
+    try:
+        items = {item["i"]: item["text"] for item in json.loads(reply)["items"]}
+        result = [items[i] for i in range(len(texts))]
+    except (ValueError, KeyError, TypeError):
+        raise ModelError("Muse returned an incomplete translation.") from None
+    if not all(isinstance(text, str) and text.strip() for text in result):
+        raise ModelError("Muse returned an incomplete translation.")
+    return result

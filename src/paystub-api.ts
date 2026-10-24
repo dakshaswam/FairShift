@@ -98,6 +98,8 @@ export async function extractPaystub(prepared: PreparedPaystub, approvedText: st
 
 // Job pay comparisons are in US dollars, so only a dollar paystub rate can be compared.
 export type ProcessedPaystub = PaystubResult & {
+  // Summary (assistant_message) and review notes in the worker's language.
+  warnings_display: string[]
   sent_text: string
   redaction_retries: number
   forced: boolean
@@ -105,7 +107,7 @@ export type ProcessedPaystub = PaystubResult & {
 
 // One request: local OCR and redaction, then an automatic send to Muse. There is
 // no manual approval step; the response includes the exact text that was sent.
-export async function processPaystub(file: File, signal: AbortSignal): Promise<ProcessedPaystub> {
+export async function processPaystub(file: File, signal: AbortSignal, language = "English"): Promise<ProcessedPaystub> {
   const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
   if (![".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"].includes(extension)) {
     throw new Error("Choose a PDF, PNG, JPEG, TIFF, BMP or WebP paystub.")
@@ -113,7 +115,12 @@ export async function processPaystub(file: File, signal: AbortSignal): Promise<P
   const data = await responseData(await fetch("/api/paystubs/process", {
     method: "POST",
     credentials: "same-origin",
-    headers: { ...HEADERS, "Content-Type": file.type || "application/octet-stream", "X-Document-Type": extension },
+    headers: {
+      ...HEADERS,
+      "Content-Type": file.type || "application/octet-stream",
+      "X-Document-Type": extension,
+      "X-FairShift-Language": language,
+    },
     body: file,
     signal,
   }))

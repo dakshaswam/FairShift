@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { EnteredWage } from "./EnteredWage"
-import { useT } from "../i18n"
-import { amount, answerPaystubQuestion, PaystubRequestError, processPaystub, type PaystubResult, type ProcessedPaystub } from "../paystub-api"
+import { languageName, useT } from "../i18n"
+import { amount, PaystubRequestError, processPaystub, type PaystubResult, type ProcessedPaystub } from "../paystub-api"
 
 type Message = { role: "assistant" | "user"; text: string }
 
@@ -10,7 +10,7 @@ const isProcessed = (result: PaystubResult | null): result is ProcessedPaystub =
 // Upload → local OCR and redaction → automatic send to Muse. No approval click:
 // the backend re-redacts and retries if its privacy check objects, and the text
 // that was actually sent is shown afterwards.
-export function PaystubPanel({ result, onResult, onAskAssistant, hourlyWage, onEditWage }: { result: PaystubResult | null; onResult: (result: PaystubResult | null) => void; onAskAssistant?: () => void; hourlyWage?: number | null; onEditWage?: () => void }) {
+export function PaystubPanel({ result, onResult, onAskAssistant, hourlyWage, onEditWage, language }: { result: PaystubResult | null; onResult: (result: PaystubResult | null) => void; onAskAssistant?: (question?: string) => void; hourlyWage?: number | null; onEditWage?: () => void; language: string }) {
   const t = useT()
   const [status, setStatus] = useState<"idle" | "processing" | "done">(result ? "done" : "idle")
   const [error, setError] = useState("")
@@ -40,7 +40,7 @@ export function PaystubPanel({ result, onResult, onAskAssistant, hourlyWage, onE
     controller.current = activeController
     setStatus("processing")
     try {
-      const processed = await processPaystub(file, activeController.signal)
+      const processed = await processPaystub(file, activeController.signal, languageName(language))
       if (sequence.current !== current) return
       setStatus("done")
       setMessages([{ role: "assistant", text: processed.assistant_message }])
@@ -53,10 +53,10 @@ export function PaystubPanel({ result, onResult, onAskAssistant, hourlyWage, onE
     }
   }
 
+  // Questions go to the assistant, which answers in the worker's language with this stub's fields.
   const ask = () => {
-    if (!question.trim() || !result || status !== "done") return
-    const text = question.trim()
-    setMessages((current) => [...current, { role: "user", text }, { role: "assistant", text: answerPaystubQuestion(result.paystub, text) }])
+    if (!question.trim() || !result || status !== "done" || !onAskAssistant) return
+    onAskAssistant(question.trim())
     setQuestion("")
   }
 
@@ -70,14 +70,14 @@ export function PaystubPanel({ result, onResult, onAskAssistant, hourlyWage, onE
       {status === "processing" && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">{t("Reading your paystub, hiding personal details and checking the numbers… This usually takes a few seconds.")}</p>}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">{error}</p>}
       {(status === "processing" || status === "done") && <button onClick={reset} className="text-sm font-bold text-slate-600 underline">{status === "processing" ? t("Cancel") : t("Clear this upload")}</button>}
-      {result && status === "done" && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm"><p className="font-bold text-emerald-950">{t("Current upload: {employer}", { employer: result.paystub.employer_name ?? t("Employer not provided") })}</p><p className="mt-1 text-emerald-900">{t("Gross {gross} · Net {net}", { gross: amount(result.paystub.gross_pay, result.paystub.currency), net: amount(result.paystub.net_pay, result.paystub.currency) })}</p><p className="mt-2 text-xs font-bold text-emerald-900">{result.source === "muse_live" ? t("Real Muse request · checked locally") : t("Mocked extraction · test data, not a live Muse response")}</p><p className="mt-2 text-xs text-emerald-900">{t("Compare these numbers with your paystub; reading it is not a wage-law determination.")}</p>{result.paystub.warnings.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-emerald-950">{result.paystub.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}{onEditWage && <EnteredWage hourlyWage={hourlyWage} stub={result.paystub} onEdit={onEditWage} className="mt-3" />}{onAskAssistant && <button onClick={onAskAssistant} className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">{t("Ask the assistant about this pay stub")}</button>}</div>}
+      {result && status === "done" && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm"><p className="font-bold text-emerald-950">{t("Current upload: {employer}", { employer: result.paystub.employer_name ?? t("Employer not provided") })}</p><p className="mt-1 text-emerald-900">{t("Gross {gross} · Net {net}", { gross: amount(result.paystub.gross_pay, result.paystub.currency), net: amount(result.paystub.net_pay, result.paystub.currency) })}</p><p className="mt-2 text-xs font-bold text-emerald-900">{result.source === "muse_live" ? t("Real Muse request · checked locally") : t("Mocked extraction · test data, not a live Muse response")}</p><p className="mt-2 text-xs text-emerald-900">{t("Compare these numbers with your paystub; reading it is not a wage-law determination.")}</p>{(isProcessed(result) ? result.warnings_display : result.paystub.warnings).length > 0 && <ul className="mt-3 list-disc space-y-1 ps-4 text-xs text-emerald-950">{(isProcessed(result) ? result.warnings_display : result.paystub.warnings).map((warning, index) => <li key={index}>{warning}</li>)}</ul>}{onEditWage && <EnteredWage hourlyWage={hourlyWage} stub={result.paystub} onEdit={onEditWage} className="mt-3" />}{onAskAssistant && <button onClick={() => onAskAssistant()} className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">{t("Ask the assistant about this pay stub")}</button>}</div>}
       {isProcessed(result) && status === "done" && <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"><summary className="cursor-pointer font-bold">{t("Text that was sent to Muse")}{result.redaction_retries > 0 ? ` · ${t("re-checked {n}×", { n: result.redaction_retries })}` : ""}{result.forced ? ` · ${t("sent after privacy retries")}` : ""}</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-slate-700">{result.sent_text}</pre></details>}
       {messages.map((item, index) => <div key={index} className={`max-w-[95%] whitespace-pre-wrap rounded-2xl p-4 text-sm leading-relaxed ${item.role === "user" ? "ml-auto bg-emerald-700 text-white" : "bg-slate-100 text-slate-700"}`}>{item.text}</div>)}
       {!result && status === "idle" && !error && <p className="rounded-xl bg-slate-100 p-4 text-sm text-slate-600">{t("Choose a document to begin. There is no current paystub result.")}</p>}
     </div>
     <form className="border-t border-slate-200 p-4" onSubmit={(event) => { event.preventDefault(); ask() }}>
       <div className="flex gap-2"><input aria-label={t("Question about current paystub")} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!result || status !== "done"} placeholder={result ? t("Ask about hours, rates, overtime or deductions") : t("Upload a paystub first")} className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-3 text-sm outline-none focus:border-emerald-700 disabled:bg-slate-100" /><button disabled={!result || status !== "done" || !question.trim()} className="rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-40">{t("Send")}</button></div>
-      <p className="mt-2 text-xs leading-relaxed text-slate-500">{t("Quick answers use this upload’s numbers, without another Muse request.")}</p>
+      <p className="mt-2 text-xs leading-relaxed text-slate-500">{t("The assistant answers using this pay stub’s numbers.")}</p>
     </form>
   </div>
 }

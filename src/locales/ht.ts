@@ -356,6 +356,9 @@ const ht: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "Navigatè sa a pa sipòte pale pou ekri. Eseye Chrome oswa Safari, oswa sèvi ak mikwo sou klavye w.",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "Mikwo a bloke. Pèmèt aksè mikwo nan navigatè w la, oswa sèvi ak mikwo sou klavye w.",
   "I didn’t hear anything. Tap the microphone and try again.": "Mwen pa tande anyen. Peze mikwo a epi eseye ankò.",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "Asistan an ap reponn ak chif ki sou fich peman sa a.",
+  "Wait for the current answer to finish.": "Tanpri tann repons lan fini.",
 }
 
 export default ht

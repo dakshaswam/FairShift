@@ -24,20 +24,25 @@ from threading import BoundedSemaphore
 
 from .documents import MAX_FILE_BYTES
 from .errors import ApprovalError, DocumentError, FairShiftError, ModelError, RedactionError, ResponseError
+from .muse import translate_texts
 from .pipeline import MAX_TEXT, auto_send_paystub, complete_paystub, prepare_paystub_bytes
 from .quiet import sensitive_operation
 from .response import build_response
 
 COOKIE = "fairshift_paystub_session"
 _ID = re.compile(r"^[A-Za-z0-9_-]{24,80}$")
+# English language names only (HTTP headers are ASCII), e.g. "Hindi", "Haitian Creole".
+_LANGUAGE = re.compile(r"^[A-Za-z][A-Za-z ()-]{1,39}$")
+_LOGGER = logging.getLogger(__name__)
 
 
 class PaystubApplication:
     def __init__(self, *, prepare=prepare_paystub_bytes, complete=complete_paystub,
-                 auto_send=auto_send_paystub, source="muse_live", clock=time.time):
+                 auto_send=auto_send_paystub, translate=translate_texts, source="muse_live", clock=time.time):
         self.prepare = prepare
         self.complete = complete
         self.auto_send = auto_send
+        self.translate = translate
         self.source = source  # Tests explicitly use "mocked"; never selected via HTTP/env.
         self.clock = clock
         self.secret = secrets.token_bytes(32)
@@ -105,7 +110,7 @@ class PaystubApplication:
                           {"stage": "chatbot_response", "status": "passed", "mode": "validated_data"}]}
 
 
-    def process_document(self, document: bytes, suffix: str) -> dict:
+    def process_document(self, document: bytes, suffix: str, language: str = "English") -> dict:
         """Upload → local OCR and redaction → automatic send to Muse, in one call.
 
         There is no manual approval step: the redacted text is sent as soon as it
@@ -115,10 +120,18 @@ class PaystubApplication:
         redacted = self.prepare(document, suffix)
         stub, sent, retries, forced = self.auto_send(redacted)
         upload_id = secrets.token_urlsafe(24)
+        message = build_response(stub)
+        # Checks above ran on English text; the worker reads it in their own language.
+        notes = list(stub.warnings)
+        if language and language != "English" and _LANGUAGE.fullmatch(language):
+            try:
+                message, *notes = self.translate([message, *notes], language)
+            except FairShiftError:
+                _LOGGER.warning("Display translation failed; showing English.")
         send_stage = {"stage": "automatic_send", "status": "passed",
                       "mode": "forced" if forced else ("re-redacted" if retries else "clean")}
         return {"upload_id": upload_id, "paystub": stub.model_dump(mode="json"),
-                "assistant_message": build_response(stub), "source": self.source,
+                "assistant_message": message, "warnings_display": notes, "source": self.source,
                 "sent_text": sent, "redaction_retries": retries, "forced": forced,
                 "trace": [{"stage": "local_text_extraction", "status": "passed", "mode": "local"},
                           {"stage": "redaction", "status": "passed", "mode": "local"},
@@ -193,7 +206,9 @@ def create_server(address=("127.0.0.1", 8790), *, application=None, allowed_orig
                     if not _ID.fullmatch(session):
                         session = secrets.token_urlsafe(24)
                     if self.path.endswith("process"):
-                        result = application.process_document(body, self.headers.get("X-Document-Type", ""))
+                        language = self.headers.get("X-FairShift-Language", "English")
+                        result = application.process_document(body, self.headers.get("X-Document-Type", ""),
+                                                              language if _LANGUAGE.fullmatch(language) else "English")
                         self._send(200, result, session)
                     elif self.path.endswith("prepare"):
                         result = application.prepare_document(body, self.headers.get("X-Document-Type", ""), session)

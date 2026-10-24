@@ -357,6 +357,9 @@ const hi: Record<string, string> = {
   "Ask about hours, rates, overtime or deductions": "घंटों, रेट, ओवरटाइम या कटौती के बारे में पूछें",
   "Upload a paystub first": "पहले पे स्लिप अपलोड करें",
   "Quick answers use this upload’s numbers, without another Muse request.": "जल्दी जवाब इसी अपलोड के नंबरों से मिलते हैं, बिना Muse को दोबारा भेजे।",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "सहायक इसी पे स्लिप के नंबरों से जवाब देता है।",
+  "Wait for the current answer to finish.": "कृपया अभी वाले जवाब के पूरा होने तक रुकें।",
 }
 
 export default hi

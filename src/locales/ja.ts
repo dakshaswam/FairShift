@@ -356,6 +356,9 @@ const ja: Record<string, string> = {
   "Voice typing isn’t supported in this browser. Try Chrome or Safari, or use the microphone on your keyboard.": "このブラウザでは音声入力は使えません。ChromeかSafariで試すか、キーボードのマイクを使ってください。",
   "The microphone is blocked. Allow microphone access in your browser, or use the microphone on your keyboard.": "マイクがブロックされています。ブラウザでマイクを許可するか、キーボードのマイクを使ってください。",
   "I didn’t hear anything. Tap the microphone and try again.": "聞こえませんでした。マイクを押してもう一度試してください。",
+  // Machine-translated with Muse; have a native speaker review.
+  "The assistant answers using this pay stub’s numbers.": "この給料明細の数字を使ってお答えします。",
+  "Wait for the current answer to finish.": "今の答えが終わるまでお待ちください。",
 }
 
 export default ja
