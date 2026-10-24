@@ -249,8 +249,9 @@ async function runTool(name, input, { profile, replyLanguage, emit }) {
       if (!requested) throw new ToolInputError("language is required")
       const name = languageName(requested)
       const { code } = resolveLanguage(name)
-      // The app UI only has these four languages; any other language changes replies only.
-      const appLanguage = ["en", "es", "hi", "vi"].includes(code) && LANGUAGES[code].name === name ? LANGUAGES[code].native : null
+      // Every language in LANGUAGES is also in the app's language picker, under its
+      // native name; any other language changes the replies only.
+      const appLanguage = LANGUAGES[code]?.name === name ? LANGUAGES[code].native : null
       emit({ type: "language", language: name, appLanguage })
       return { ok: true, reply_language: name, app_display_switched: Boolean(appLanguage) }
     }

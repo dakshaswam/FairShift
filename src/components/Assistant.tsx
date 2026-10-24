@@ -15,6 +15,7 @@ import {
 } from "./assistantStrings"
 import { JobCard, PayRange } from "./JobPay"
 import { PlaceCard, languageNames } from "./LocalHelp"
+import { useT } from "../i18n"
 
 type Item =
   | { id: string; role: "user"; text: string }
@@ -138,7 +139,7 @@ export function Assistant({
   onLanguageChange: (language: string) => void
   onUploadPaystub: () => void
 }) {
-  const t = assistantStrings(language)
+  const t = assistantStrings(useT())
   const [items, setItems] = useState<Item[]>(saved.items)
   const [mode, setMode] = useState<AssistantMode>(initialMode)
   const [speed, setSpeed] = useState(readSpeed)

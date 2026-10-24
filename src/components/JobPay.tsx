@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { compareJobPay, speakIn, type Job, type JobsResponse } from "../api"
+import { tk, useT } from "../i18n"
 
 const money = (n: number) => `$${n.toFixed(2).replace(/\.00$/, "")}`
 
@@ -10,9 +11,9 @@ const verdictStyle = {
 }
 
 const verdictLabel = {
-  below_market: "Below advertised market pay",
-  at_market: "Your pay is typical",
-  above_market: "You're paid above most",
+  below_market: tk("Below advertised market pay"),
+  at_market: tk("Your pay is typical"),
+  above_market: tk("You're paid above most"),
 }
 
 export function JobPay({
@@ -29,6 +30,7 @@ export function JobPay({
   // Run the search on open, e.g. when the job comes from the worker's profile.
   autoSearch?: boolean
 }) {
+  const t = useT()
   const [jobTitle, setJobTitle] = useState(defaultJobTitle)
   const [location, setLocation] = useState(defaultLocation)
   const [wage, setWage] = useState(defaultWage === undefined ? "" : String(defaultWage))
@@ -39,7 +41,7 @@ export function JobPay({
 
   const search = async () => {
     if (!jobTitle.trim() || !location.trim()) {
-      setError("Enter your job and city to compare pay.")
+      setError(t("Enter your job and city to compare pay."))
       return
     }
     setLoading(true)
@@ -85,33 +87,30 @@ export function JobPay({
         className="grid grid-cols-2 gap-3"
       >
         <label className="col-span-2 text-sm font-semibold">
-          My job
-          <input
+          {t("My job")}<input
             value={jobTitle}
             onChange={(event) => setJobTitle(event.target.value)}
-            placeholder="e.g. line cook, cleaner, cashier"
+            placeholder={t("e.g. line cook, cleaner, cashier")}
             className={input}
           />
         </label>
         <label className="text-sm font-semibold">
-          City or ZIP
-          <input
+          {t("City or ZIP")}<input
             value={location}
             onChange={(event) => setLocation(event.target.value)}
             className={input}
           />
         </label>
         <label className="text-sm font-semibold">
-          My pay per hour
-          <span className="relative block">
-            <span className="absolute left-3 top-1/2 mt-0.5 -translate-y-1/2 text-slate-500">
+          {t("My pay per hour")}<span className="relative block">
+            <span className="absolute start-3 top-1/2 mt-0.5 -translate-y-1/2 text-slate-500">
               $
             </span>
             <input
               value={wage}
               onChange={(event) => setWage(event.target.value)}
               inputMode="decimal"
-              className={`${input} pl-7`}
+              className={`${input} ps-7`}
             />
           </span>
         </label>
@@ -119,7 +118,7 @@ export function JobPay({
           disabled={loading}
           className="col-span-2 rounded-xl bg-emerald-700 py-3.5 font-bold text-white hover:bg-emerald-800 disabled:bg-slate-400"
         >
-          {loading ? "Checking jobs near you…" : "Compare my pay"}
+          {loading ? t("Checking jobs near you…") : t("Compare my pay")}
         </button>
       </form>
 
@@ -140,9 +139,7 @@ export function JobPay({
 
         {!loading && !data && !error && (
           <p className="rounded-2xl bg-sky-50 p-4 text-sm leading-relaxed text-sky-950">
-            We look at real job posts near you to show what similar work pays,
-            so you know your worth.
-          </p>
+            {t("We look at real job posts near you to show what similar work pays, so you know your worth.")}</p>
         )}
 
         {!loading && data && (
@@ -156,7 +153,7 @@ export function JobPay({
             >
               {data.comparison && (
                 <p className="text-xs font-bold uppercase tracking-wider">
-                  {verdictLabel[data.comparison.verdict]}
+                  {t(verdictLabel[data.comparison.verdict])}
                 </p>
               )}
               <p className="mt-1 leading-relaxed">{data.summary}</p>
@@ -164,8 +161,7 @@ export function JobPay({
                 onClick={() => speakIn(language, data.summary)}
                 className="mt-3 text-sm font-bold underline"
               >
-                🔊 Listen
-              </button>
+                {t("🔊 Listen")}</button>
             </section>
 
             {data.stats && (
@@ -178,15 +174,15 @@ export function JobPay({
             <div className="flex items-center justify-between pt-2">
               <h3 className="font-bold">
                 {showAll || data.betterPaying.length === 0
-                  ? `All ${data.jobs.length} jobs found`
-                  : `${data.betterPaying.length} jobs that pay more`}
+                  ? t("All {n} jobs found", { n: data.jobs.length })
+                  : t("{n} jobs that pay more", { n: data.betterPaying.length })}
               </h3>
               {data.betterPaying.length > 0 && (
                 <button
                   onClick={() => setShowAll(!showAll)}
                   className="text-sm font-bold text-emerald-700"
                 >
-                  {showAll ? "Only higher pay" : "Show all"}
+                  {showAll ? t("Only higher pay") : t("Show all")}
                 </button>
               )}
             </div>
@@ -207,6 +203,7 @@ export function PayRange({
   stats: NonNullable<JobsResponse["stats"]>
   wage?: number
 }) {
+  const t = useT()
   const low = Math.min(stats.min, wage ?? stats.min)
   const high = Math.max(stats.max, wage ?? stats.max)
   const at = (n: number) =>
@@ -215,15 +212,16 @@ export function PayRange({
   return (
     <section className="rounded-2xl border border-slate-200 p-5">
       <div className="flex justify-between text-sm">
-        <span className="text-slate-600">Typical hourly pay nearby</span>
-        <strong>{money(stats.median)}/hr</strong>
+        <span className="text-slate-600">{t("Typical hourly pay nearby")}</span>
+        <strong>{money(stats.median)}{t("/hr")}</strong>
       </div>
       <div
         className="relative mt-8 h-3 rounded-full bg-slate-100"
         role="img"
-        aria-label={`Most jobs pay ${money(stats.p25)} to ${money(stats.p75)} per hour${
-          wage ? `; you earn ${money(wage)}` : ""
-        }`}
+        aria-label={`${t("Most jobs pay {low} to {high} per hour", {
+          low: money(stats.p25),
+          high: money(stats.p75),
+        })}${wage ? `; ${t("you earn {wage}", { wage: money(wage) })}` : ""}`}
       >
         <div
           className="absolute inset-y-0 rounded-full bg-emerald-200"
@@ -242,8 +240,7 @@ export function PayRange({
             style={{ left: `${at(wage)}%` }}
           >
             <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-xs font-bold text-white">
-              You
-            </span>
+              {t("You")}</span>
             <span className="mx-auto mt-1 block size-3 rounded-full border-2 border-white bg-slate-900" />
           </div>
         )}
@@ -251,19 +248,19 @@ export function PayRange({
       <div className="mt-2 flex justify-between text-xs text-slate-500">
         <span>{money(low)}</span>
         <span>
-          Most pay {money(stats.p25)}–{money(stats.p75)}
+          {t("Most pay {low}–{high}", { low: money(stats.p25), high: money(stats.p75) })}
         </span>
         <span>{money(high)}</span>
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        Based on {stats.count} job posts that list pay. Yearly salaries are
-        converted at 40 hours a week.
+        {t("Based on {count} job posts that list pay. Yearly salaries are converted at 40 hours a week.", { count: stats.count })}
       </p>
     </section>
   )
 }
 
 export function JobCard({ job }: { job: Job }) {
+  const t = useT()
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
@@ -275,8 +272,7 @@ export function JobCard({ job }: { job: Job }) {
         </div>
         {job.paysMoreBy !== null && job.paysMoreBy > 0 && (
           <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">
-            +{money(job.paysMoreBy)}/hr
-          </span>
+            +{money(job.paysMoreBy)}{t("/hr")}</span>
         )}
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
@@ -299,20 +295,20 @@ export function JobCard({ job }: { job: Job }) {
                   job.pay.hourly.max > job.pay.hourly.min
                     ? `–${money(job.pay.hourly.max)}`
                     : ""
-                }/hr`
-              : `≈ ${money(job.pay.hourly.mid)}/hr (${job.pay.text})`
-            : "Pay not listed"}
+                }${t("/hr")}`
+              : `≈ ${money(job.pay.hourly.mid)}${t("/hr")} (${job.pay.text})`
+            : t("Pay not listed")}
         </strong>
         {job.applyUrl && (
           <span className="text-sm font-bold">
-            Apply{job.via ? ` on ${job.via}` : ""} →
+            {job.via ? t("Apply on {via} →", { via: job.via }) : t("Apply →")}
           </span>
         )}
       </div>
     </>
   )
   const card =
-    "block w-full rounded-2xl border border-slate-200 p-4 text-left hover:border-emerald-600 sm:p-5"
+    "block w-full rounded-2xl border border-slate-200 p-4 text-start hover:border-emerald-600 sm:p-5"
   return job.applyUrl ? (
     <a href={job.applyUrl} target="_blank" rel="noreferrer" className={card}>
       {body}

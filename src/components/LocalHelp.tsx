@@ -1,29 +1,30 @@
 import { useEffect, useState } from "react"
 import { findHelp, type HelpCategory, type Place } from "../api"
+import { LANGUAGE_OPTIONS, tk, useT } from "../i18n"
 
 const tabs: { id: HelpCategory; label: string; hint: string }[] = [
   {
     id: "legal_aid",
-    label: "Legal aid",
-    hint: "Free lawyers and legal clinics that handle unpaid wages.",
+    label: tk("Legal aid"),
+    hint: tk("Free lawyers and legal clinics that handle unpaid wages."),
   },
   {
     id: "worker_center",
-    label: "Worker centers",
-    hint: "Community groups that help workers recover pay.",
+    label: tk("Worker centers"),
+    hint: tk("Community groups that help workers recover pay."),
   },
   {
     id: "consulate",
-    label: "My consulate",
-    hint: "Your consulate can help with ID documents and labor problems.",
+    label: tk("My consulate"),
+    hint: tk("Your consulate can help with ID documents and labor problems."),
   },
 ]
 
-export const languageNames: Record<string, string> = {
-  Español: "Spanish",
-  हिन्दी: "Hindi",
-  "Tiếng Việt": "Vietnamese",
-}
+export const languageNames: Record<string, string> = Object.fromEntries(
+  LANGUAGE_OPTIONS.filter((option) => option.label !== "English").map(
+    (option) => [option.label, option.name],
+  ),
+)
 
 type Origin = { label: string; lat?: number; lng?: number }
 
@@ -34,6 +35,7 @@ export function LocalHelp({
   language: string
   defaultLocation: string
 }) {
+  const t = useT()
   const [category, setCategory] = useState<HelpCategory>("legal_aid")
   const [locationInput, setLocationInput] = useState(defaultLocation)
   const [origin, setOrigin] = useState<Origin>({ label: defaultLocation })
@@ -87,23 +89,23 @@ export function LocalHelp({
 
   const useMyLocation = () => {
     if (!navigator.geolocation) {
-      setError("Your browser can't share your location. Type a city instead.")
+      setError(t("Your browser can't share your location. Type a city instead."))
       return
     }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false)
-        setLocationInput("My location")
+        setLocationInput(t("My location"))
         setOrigin({
-          label: "My location",
+          label: t("My location"),
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         })
       },
       () => {
         setLocating(false)
-        setError("We couldn't get your location. Type a city or ZIP code.")
+        setError(t("We couldn't get your location. Type a city or ZIP code."))
       },
     )
   }
@@ -121,30 +123,28 @@ export function LocalHelp({
         className="flex gap-2"
       >
         <label className="sr-only" htmlFor="help-location">
-          City or ZIP code
-        </label>
+          {t("City or ZIP code")}</label>
         <input
           id="help-location"
           value={locationInput}
           onChange={(event) => setLocationInput(event.target.value)}
-          placeholder="City or ZIP code"
+          placeholder={t("City or ZIP code")}
           className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-700"
         />
         <button className="rounded-xl bg-emerald-700 px-4 font-bold text-white hover:bg-emerald-800">
-          Search
-        </button>
+          {t("Search")}</button>
       </form>
       <button
         onClick={useMyLocation}
         disabled={locating}
         className="mt-2 text-sm font-bold text-emerald-700 disabled:text-slate-400"
       >
-        {locating ? "Finding you…" : "📍 Use my current location"}
+        {locating ? t("Finding you…") : t("📍 Use my current location")}
       </button>
 
       <div
         role="tablist"
-        aria-label="Kind of help"
+        aria-label={t("Kind of help")}
         className="mt-5 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1"
       >
         {tabs.map((tab) => (
@@ -159,11 +159,11 @@ export function LocalHelp({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </div>
-      <p className="mt-3 text-sm text-slate-600">{active.hint}</p>
+      <p className="mt-3 text-sm text-slate-600">{t(active.hint)}</p>
 
       {category === "consulate" && (
         <form
@@ -174,32 +174,29 @@ export function LocalHelp({
           className="mt-3 flex items-center gap-2"
         >
           <label htmlFor="help-country" className="text-sm font-semibold">
-            Home country
-          </label>
+            {t("Home country")}</label>
           <input
             id="help-country"
             value={countryInput}
             onChange={(event) => setCountryInput(event.target.value)}
-            placeholder="e.g. Mexico"
+            placeholder={t("e.g. Mexico")}
             className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-700"
           />
           <button className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold">
-            Update
-          </button>
+            {t("Update")}</button>
         </form>
       )}
 
       <div className="mt-5 space-y-3" aria-live="polite">
         {error ? (
           <div className="rounded-2xl bg-rose-50 p-5 text-sm text-rose-900">
-            <p className="font-bold">Something went wrong</p>
+            <p className="font-bold">{t("Something went wrong")}</p>
             <p className="mt-1">{error}</p>
             <button
               onClick={() => setAttempt((n) => n + 1)}
               className="mt-3 font-bold underline"
             >
-              Try again
-            </button>
+              {t("Try again")}</button>
           </div>
         ) : loading ? (
           [0, 1, 2].map((n) => (
@@ -211,8 +208,8 @@ export function LocalHelp({
         ) : places.length === 0 ? (
           <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-600">
             {category === "consulate" && !countryInput
-              ? "Tell us your home country to find your consulate."
-              : "We didn't find any places here. Try a nearby city or ZIP code."}
+              ? t("Tell us your home country to find your consulate.")
+              : t("We didn't find any places here. Try a nearby city or ZIP code.")}
           </div>
         ) : (
           places.map((place) => (
@@ -226,10 +223,7 @@ export function LocalHelp({
       </div>
 
       <p className="mt-6 rounded-2xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-950">
-        <strong>Before you call:</strong> have your FairShift shift log, pay
-        stubs and bank deposits ready. Legal aid and worker centers help
-        workers regardless of immigration status.
-      </p>
+        <strong>{t("Before you call:")}</strong> {t("have your FairShift shift log, pay stubs and bank deposits ready. Legal aid and worker centers help workers regardless of immigration status.")}</p>
     </div>
   )
 }
@@ -241,6 +235,7 @@ export function PlaceCard({
   place: Place
   languageName?: string
 }) {
+  const t = useT()
   const link =
     "flex items-center justify-center rounded-xl border border-slate-200 py-2.5 text-sm font-bold hover:border-emerald-600 hover:text-emerald-800"
   return (
@@ -251,7 +246,7 @@ export function PlaceCard({
           <p className="mt-0.5 text-sm text-slate-600">
             {[
               place.type,
-              place.distanceMiles !== null && `${place.distanceMiles} mi`,
+              place.distanceMiles !== null && `${place.distanceMiles} ${t("mi")}`,
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -271,17 +266,16 @@ export function PlaceCard({
       <div className="mt-3 flex flex-wrap gap-1.5">
         {place.likelyFree && place.category !== "consulate" && (
           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">
-            Free / nonprofit
-          </span>
+            {t("Free / nonprofit")}</span>
         )}
         {languageName && place.mentionsLanguage && (
           <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-800">
-            Mentions {languageName}
+            {t("Mentions {language}", { language: t(languageName) })}
           </span>
         )}
         {languageName && !place.mentionsLanguage && place.foundInLanguageSearch && (
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-            Found in {languageName} search
+            {t("Found in {language} search", { language: t(languageName) })}
           </span>
         )}
       </div>
@@ -296,12 +290,10 @@ export function PlaceCard({
       <div className="mt-4 grid grid-cols-3 gap-2">
         {place.phone ? (
           <a href={`tel:${place.phone}`} className={link}>
-            Call
-          </a>
+            {t("Call")}</a>
         ) : (
           <span className={`${link} cursor-not-allowed text-slate-400`}>
-            No phone
-          </span>
+            {t("No phone")}</span>
         )}
         <a
           href={place.directionsUrl}
@@ -309,15 +301,14 @@ export function PlaceCard({
           rel="noreferrer"
           className={link}
         >
-          Directions
-        </a>
+          {t("Directions")}</a>
         <a
           href={place.website ?? place.mapsUrl}
           target="_blank"
           rel="noreferrer"
           className={link}
         >
-          {place.website ? "Website" : "Map"}
+          {place.website ? t("Website") : t("Map")}
         </a>
       </div>
     </article>

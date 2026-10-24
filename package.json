@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:paystub": "node scripts/run-paystub.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "i18n:check": "node scripts/check-translations.mjs",
+    "i18n:translate": "node --env-file-if-exists=.env scripts/translate-missing.mjs",
     "test:upload": "node --experimental-strip-types --test tests/frontend-paystub.test.ts",
     "test:browser": "node tests/browser-paystub.mjs",
     "build": "vite build",

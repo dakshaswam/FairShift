@@ -1,4 +1,5 @@
 // Client for the FairShift API in server/. In dev, Vite proxies /api to it.
+import { speechLang } from "./i18n"
 import type { Paystub } from "./paystub-api"
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ""
@@ -191,14 +192,8 @@ export function compareJobPay(params: {
   return get<JobsResponse>("/jobs/compare", params)
 }
 
-const SPEECH_LANG: Record<string, string> = {
-  English: "en-US",
-  Español: "es-US",
-  हिन्दी: "hi-IN",
-  "Tiếng Việt": "vi-VN",
-}
-
-export const speechLang = (language: string) => SPEECH_LANG[language] ?? "en-US"
+// Speech tags for all app languages live with the translations.
+export { speechLang } from "./i18n"
 
 export function speakIn(language: string, text: string) {
   if (!("speechSynthesis" in window)) return

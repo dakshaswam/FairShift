@@ -3,11 +3,13 @@ import { getCurrentUser, saveProfile, signOut, type User } from "./api"
 import { Assistant } from "./components/Assistant"
 import type { AssistantMode } from "./components/assistantStrings"
 import { GoogleSignIn } from "./components/GoogleSignIn"
+import { LanguagePicker } from "./components/LanguagePicker"
 import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
 import { OccupationStep } from "./components/OccupationStep"
 import { PaystubPanel } from "./components/PaystubPanel"
 import { EnteredWage } from "./components/EnteredWage"
+import { I18nProvider, LANGUAGE_OPTIONS, languageDir, speechLang, tk, translator } from "./i18n"
 import { amount, dollars, isUsd, type PaystubResult } from "./paystub-api"
 
 type IconName = "home" | "clock" | "file" | "help" | "shield" | "camera" | "chevron" | "briefcase" | "map" | "volume" | "check"
@@ -92,26 +94,39 @@ function Icon({
 }
 
 const navItems: { id: string; label: string; icon: IconName }[] = [
-  { id: "home", label: "Home", icon: "home" },
-  { id: "shifts", label: "My shifts", icon: "clock" },
-  { id: "pay", label: "Pay records", icon: "file" },
-  { id: "help", label: "Get help", icon: "help" },
+  { id: "home", label: tk("Home"), icon: "home" },
+  { id: "shifts", label: tk("My shifts"), icon: "clock" },
+  { id: "pay", label: tk("Pay records"), icon: "file" },
+  { id: "help", label: tk("Get help"), icon: "help" },
 ]
 
-export default function App() {
+function AppInner({
+  language,
+  setLanguage,
+}: {
+  language: string
+  setLanguage: (value: string) => void
+}) {
   const [authStep, setAuthStep] = useState<
     "loading" | "login" | "language" | "occupation" | "editOccupation" | "app"
   >("loading")
   const [user, setUser] = useState<User | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [active, setActive] = useState("home")
-  const [language, setLanguage] = useState("English")
   const [clockedIn, setClockedIn] = useState(false)
   const [drawer, setDrawer] =
     useState<"stub" | "assistant" | "claim" | "lawyer" | "jobs" | null>(null)
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("stub")
   const [paystubResult, setPaystubResult] = useState<PaystubResult | null>(null)
   const currentStub = paystubResult?.paystub ?? null
+
+  const t = translator(language)
+
+  // Keep <html lang> and text direction in sync (screen readers, fonts, Arabic and Urdu right-to-left).
+  useEffect(() => {
+    document.documentElement.lang = speechLang(language).split("-")[0]
+    document.documentElement.dir = languageDir(language)
+  }, [language])
 
   const profile = user?.profile
   const firstName = user?.name.split(" ")[0] ?? ""
@@ -158,7 +173,9 @@ export default function App() {
   const speak = (text: string) => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(text))
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = speechLang(language)
+      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -196,26 +213,27 @@ export default function App() {
   if (authStep === "login" || !user) {
     return (
       <div className="grid min-h-screen place-items-center bg-emerald-950 px-5">
+        <div className="fixed end-4 top-4 z-10">
+          <LanguagePicker language={language} onChange={setLanguage} />
+        </div>
         <main className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl sm:p-10">
           <span className="grid size-12 place-items-center rounded-2xl bg-emerald-700 text-white">
             <Icon name="shield" className="size-7" />
           </span>
           <p className="mt-6 text-sm font-bold text-emerald-700">FAIRSHIFT</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">
-            Know your hours.
+            {t("Know your hours.")}
             <br />
-            Keep what you earn.
+            {t("Keep what you earn.")}
           </h1>
           <p className="mt-4 leading-relaxed text-slate-600">
-            Securely track your work, understand every paycheck, and get help
-            when something is wrong.
+            {t("Securely track your work, understand every paycheck, and get help when something is wrong.")}
           </p>
           <div className="mt-8">
-            <GoogleSignIn onSignedIn={enterApp} />
+            <GoogleSignIn key={language} onSignedIn={enterApp} />
           </div>
           <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
-            We only use your name and email to keep your records safe. We never
-            share them with your employer.
+            {t("We only use your name and email to keep your records safe. We never share them with your employer.")}
           </p>
         </main>
       </div>
@@ -223,29 +241,28 @@ export default function App() {
   }
 
   if (authStep === "language") {
-    const languages = ["English", "Español", "हिन्दी", "Tiếng Việt"]
+    const languages = LANGUAGE_OPTIONS.map((option) => option.label)
     return (
       <div className="grid min-h-screen place-items-center bg-stone-50 px-5">
-        <main className="w-full max-w-xl">
+        <main className="w-full max-w-2xl py-10">
           <span className="grid size-12 place-items-center rounded-2xl bg-emerald-700 text-white">
             <Icon name="volume" className="size-6" />
           </span>
           <p className="mt-7 text-sm font-bold text-emerald-700">
-            WELCOME TO FAIRSHIFT
+            {t("WELCOME TO FAIRSHIFT")}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">
-            Which language feels best?
+            {t("Which language feels best?")}
           </h1>
           <p className="mt-3 text-slate-600">
-            You can change this anytime. Pay explanations and voice input will
-            use this language.
+            {t("You can change this anytime. Pay explanations and voice input will use this language.")}
           </p>
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
             {languages.map((item) => (
               <button
                 key={item}
                 onClick={() => setLanguage(item)}
-                className={`rounded-2xl border p-5 text-left text-lg font-bold transition ${
+                className={`rounded-2xl border p-5 text-start text-lg font-bold transition ${
                   language === item
                     ? "border-emerald-700 bg-emerald-50 text-emerald-900"
                     : "border-slate-200 bg-white hover:border-slate-400"
@@ -253,7 +270,7 @@ export default function App() {
               >
                 {item}
                 <span className="mt-1 block text-sm font-normal text-slate-500">
-                  {item === "English" ? "English" : `Continue in ${item}`}
+                  {item === "English" ? t("English") : t("Continue in {language}", { language: item })}
                 </span>
               </button>
             ))}
@@ -262,7 +279,7 @@ export default function App() {
             onClick={() => setAuthStep("occupation")}
             className="mt-7 w-full rounded-xl bg-emerald-700 px-6 py-4 font-bold text-white hover:bg-emerald-800"
           >
-            Continue
+            {t("Continue")}
           </button>
         </main>
       </div>
@@ -283,23 +300,10 @@ export default function App() {
             <span className="text-lg font-bold tracking-tight">FairShift</span>
           </button>
           <div className="flex items-center gap-3">
-            <label className="sr-only" htmlFor="language">
-              Language
-            </label>
-            <select
-              id="language"
-              value={language}
-              onChange={(event) => changeLanguage(event.target.value)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold outline-none focus:border-emerald-700"
-            >
-              <option>English</option>
-              <option>Español</option>
-              <option>हिन्दी</option>
-              <option>Tiếng Việt</option>
-            </select>
+            <LanguagePicker language={language} onChange={changeLanguage} />
             <div className="relative">
               <button
-                aria-label="Profile"
+                aria-label={t("Profile")}
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="grid size-10 place-items-center overflow-hidden rounded-full bg-amber-100 text-sm font-bold text-amber-900"
@@ -326,7 +330,7 @@ export default function App() {
                       <p className="mt-2 text-sm text-slate-700">
                         {profile.occupation}
                         {profile.location ? ` · ${profile.location}` : ""}
-                        {profile.hourlyWage ? ` · ${dollars(profile.hourlyWage)}/hr` : ""}
+                        {profile.hourlyWage ? ` · ${dollars(profile.hourlyWage)}/${t("hr")}` : ""}
                       </p>
                     )}
                   </div>
@@ -337,13 +341,13 @@ export default function App() {
                     }}
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100"
                   >
-                    Edit my job
+                    {t("Edit my job")}
                   </button>
                   <button
                     onClick={logOut}
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50"
                   >
-                    Sign out
+                    {t("Sign out")}
                   </button>
                 </div>
               )}
@@ -366,15 +370,15 @@ export default function App() {
                 }`}
               >
                 <Icon name={item.icon} />
-                {item.label}
+                {t(item.label)}
               </button>
             ))}
           </nav>
           <div className="mt-10 rounded-2xl bg-slate-900 p-4 text-white">
             <Icon name="shield" className="mb-3 size-6 text-emerald-300" />
-            <p className="text-sm font-bold">Your records belong to you.</p>
+            <p className="text-sm font-bold">{t("Your records belong to you.")}</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-300">
-              Paystub data stays in this browser session. Nothing is saved as pay history.
+              {t("Paystub data stays in this browser session. Nothing is saved as pay history.")}
             </p>
           </div>
         </aside>
@@ -385,23 +389,25 @@ export default function App() {
               <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <p className="mb-1 text-sm font-semibold text-emerald-700">
-                    Current session
+                    {t("Current session")}
                   </p>
                   <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                    {new Date().getHours() < 12
-                      ? "Good morning"
-                      : new Date().getHours() < 18
-                        ? "Good afternoon"
-                        : "Good evening"}
-                    , {firstName}
+                    {t(
+                      new Date().getHours() < 12
+                        ? "Good morning, {name}"
+                        : new Date().getHours() < 18
+                          ? "Good afternoon, {name}"
+                          : "Good evening, {name}",
+                      { name: firstName },
+                    )}
                   </h1>
                   <p className="mt-2 text-slate-600">
-                    Let’s make sure every hour counts.
+                    {t("Let’s make sure every hour counts.")}
                   </p>
                 </div>
                 <span className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
-                  <span className="size-2 rounded-full bg-emerald-500" /> All
-                  records protected
+                  <span className="size-2 rounded-full bg-emerald-500" />{" "}
+                  {t("All records protected")}
                 </span>
               </div>
 
@@ -410,15 +416,15 @@ export default function App() {
                   <div className="flex items-start justify-between gap-5">
                     <div>
                       <p className="text-sm font-semibold text-emerald-200">
-                        Today’s shift
+                        {t("Today’s shift")}
                       </p>
                       <h2 className="mt-1 text-2xl font-bold">
-                        {clockedIn ? "Shift in progress" : "Ready to start?"}
+                        {clockedIn ? t("Shift in progress") : t("Ready to start?")}
                       </h2>
                       <p className="mt-2 max-w-md text-sm leading-relaxed text-emerald-100">
                         {clockedIn
-                          ? "This prototype toggle is not a verified work record."
-                          : "Try the shift interface. Work-record storage is not connected in this prototype."}
+                          ? t("This prototype toggle is not a verified work record.")
+                          : t("Try the shift interface. Work-record storage is not connected in this prototype.")}
                       </p>
                     </div>
                     <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10">
@@ -430,12 +436,12 @@ export default function App() {
                       onClick={() => setClockedIn(!clockedIn)}
                       className="rounded-xl bg-amber-300 px-6 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
                     >
-                      {clockedIn ? "End shift" : "Clock in now"}
+                      {clockedIn ? t("End shift") : t("Clock in now")}
                     </button>
                     <p className="text-xs text-emerald-100">
                       {clockedIn
-                        ? "Prototype session only"
-                        : "No location or work evidence is recorded"}
+                        ? t("Prototype session only")
+                        : t("No location or work evidence is recorded")}
                     </p>
                   </div>
                 </article>
@@ -443,17 +449,17 @@ export default function App() {
                 <article className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-7">
                   <div className="flex items-center justify-between">
                     <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold text-amber-900">
-                      {currentStub ? "Review extracted values" : "No paystub yet"}
+                      {currentStub ? t("Review extracted values") : t("No paystub yet")}
                     </span>
                     <span className="text-2xl font-bold text-amber-950">
                       {currentStub ? amount(currentStub.net_pay, currentStub.currency) : "—"}
                     </span>
                   </div>
                   <h2 className="mt-5 text-lg font-bold">
-                    {currentStub ? "Current paystub" : "Understand your paycheck"}
+                    {currentStub ? t("Current paystub") : t("Understand your paycheck")}
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-amber-950/70">
-                    {currentStub ? `${currentStub.employer_name ?? "Employer not provided"}. Overtime pay listed: ${amount(currentStub.overtime_pay, currentStub.currency)}.` : "Upload a document to see its actual hours, rates, deductions and pay."}
+                    {currentStub ? t("{employer}. Overtime pay listed: {amount}.", { employer: currentStub.employer_name ?? t("Employer not provided"), amount: amount(currentStub.overtime_pay, currentStub.currency) }) : t("Upload a document to see its actual hours, rates, deductions and pay.")}
                   </p>
                   <EnteredWage
                     hourlyWage={profile?.hourlyWage}
@@ -465,7 +471,7 @@ export default function App() {
                     onClick={() => setDrawer("stub")}
                     className="mt-5 flex items-center gap-1 text-sm font-bold text-amber-950"
                   >
-                    {currentStub ? "Review this upload" : "Check a paystub"}{" "}
+                    {currentStub ? t("Review this upload") : t("Check a paystub")}{" "}
                     <Icon name="chevron" className="size-4" />
                   </button>
                 </article>
@@ -474,10 +480,10 @@ export default function App() {
               <section className="mt-9">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-xl font-bold tracking-tight">
-                    Your pay, made clear
+                    {t("Your pay, made clear")}
                   </h2>
                   <button className="text-sm font-bold text-emerald-700">
-                    View all
+                    {t("View all")}
                   </button>
                 </div>
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -488,9 +494,9 @@ export default function App() {
                     <span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700">
                       <Icon name="camera" />
                     </span>
-                    <h3 className="mt-5 font-bold">Check a pay stub</h3>
+                    <h3 className="mt-5 font-bold">{t("Check a pay stub")}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                      Take a photo. We’ll explain each line and check the math.
+                      {t("Take a photo. We’ll explain each line and check the math.")}
                     </p>
                     <span className="mt-5 flex items-center gap-1 text-sm font-bold text-emerald-700">
                       Scan pay stub <Icon name="chevron" className="size-4" />
@@ -502,13 +508,13 @@ export default function App() {
                         <Icon name="briefcase" />
                       </span>
                       <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                        {currentStub ? "Extracted · review needed" : "Awaiting upload"}
+                        {currentStub ? t("Extracted · review needed") : t("Awaiting upload")}
                       </span>
                     </div>
-                    <h3 className="mt-5 font-bold">Current paystub</h3>
+                    <h3 className="mt-5 font-bold">{t("Current paystub")}</h3>
                     <div className="mt-2 flex items-end justify-between">
                       <p className="text-sm text-slate-600">
-                        {currentStub ? `${currentStub.pay_date ?? "Pay date not provided"} · ${currentStub.employer_name ?? "Employer not provided"}` : "No current document"}
+                        {currentStub ? `${currentStub.pay_date ?? t("Pay date not provided")} · ${currentStub.employer_name ?? t("Employer not provided")}` : t("No current document")}
                       </p>
                       <p className="text-lg font-bold">{currentStub ? amount(currentStub.net_pay, currentStub.currency) : "—"}</p>
                     </div>
@@ -521,15 +527,15 @@ export default function App() {
                       <button
                         onClick={() => paystubResult && speak(paystubResult.assistant_message)}
                         disabled={!paystubResult}
-                        aria-label="Play pay explanation"
+                        aria-label={t("Play pay explanation")}
                         className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold"
                       >
-                        Play
+                        {t("Play")}
                       </button>
                     </div>
-                    <h3 className="mt-5 font-bold">Listen in {language}</h3>
+                    <h3 className="mt-5 font-bold">{t("Listen in {language}", { language })}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                      {paystubResult ? "Listen to this upload’s extracted summary." : "Upload and approve a paystub to hear its summary."}
+                      {paystubResult ? t("Listen to this upload’s extracted summary.") : t("Upload a paystub to hear its summary.")}
                     </p>
                   </article>
                 </div>
@@ -543,11 +549,10 @@ export default function App() {
                     </span>
                     <div>
                       <h2 className="text-lg font-bold">
-                        Help near you, in your language
+                        {t("Help near you, in your language")}
                       </h2>
                       <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
-                        Find trusted worker centers, legal aid, and your
-                        consulate near {shortLocation}.
+                        {t("Find trusted worker centers, legal aid, and your consulate near {place}.", { place: shortLocation })}
                       </p>
                     </div>
                   </div>
@@ -556,25 +561,25 @@ export default function App() {
                       onClick={() => setDrawer("claim")}
                       className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white"
                     >
-                      Start wage claim
+                      {t("Start wage claim")}
                     </button>
                     <button
                       onClick={() => setDrawer("lawyer")}
                       className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
                     >
-                      Find a lawyer
+                      {t("Find a lawyer")}
                     </button>
                     <button
                       onClick={() => setDrawer("jobs")}
                       className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold"
                     >
-                      Find a better job
+                      {t("Find a better job")}
                     </button>
                     <button
                       onClick={() => openAssistant("ask")}
                       className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold"
                     >
-                      Ask the assistant
+                      {t("Ask the assistant")}
                     </button>
                   </div>
                 </div>
@@ -585,10 +590,10 @@ export default function App() {
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <p className="text-sm font-bold text-emerald-700">
-                    SHIFT INTERFACE
+                    {t("SHIFT INTERFACE")}
                   </p>
                   <h1 className="mt-2 text-3xl font-bold tracking-tight">
-                    My shifts
+                    {t("My shifts")}
                   </h1>
                   <p className="mt-2 text-slate-600">
                     A prototype clock interface; not payroll evidence.
@@ -598,12 +603,12 @@ export default function App() {
                   onClick={() => setClockedIn(!clockedIn)}
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-bold text-white"
                 >
-                  {clockedIn ? "End current shift" : "Clock in now"}
+                  {clockedIn ? t("End current shift") : t("Clock in now")}
                 </button>
               </div>
               <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
-                <h2 className="text-lg font-bold">No verified work log is connected</h2>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">The clock toggle is a prototype interaction. It does not supply hours or evidence for paystub analysis. The assistant uses only the current uploaded document.</p>
+                <h2 className="text-lg font-bold">{t("No verified work log is connected")}</h2>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">{t("The clock toggle is a prototype interaction. It does not supply hours or evidence for paystub analysis. The assistant uses only the current uploaded document.")}</p>
               </section>
             </>
           ) : active === "pay" ? (
@@ -611,51 +616,50 @@ export default function App() {
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <p className="text-sm font-bold text-emerald-700">
-                    PAY HISTORY
+                    {t("PAY HISTORY")}
                   </p>
                   <h1 className="mt-2 text-3xl font-bold tracking-tight">
-                    Pay records
+                    {t("Pay records")}
                   </h1>
                   <p className="mt-2 text-slate-600">
-                    Review the validated fields from your current uploaded paystub.
+                    {t("Review the validated fields from your current uploaded paystub.")}
                   </p>
                 </div>
                 <button
                   onClick={() => setDrawer("stub")}
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-bold text-white"
                 >
-                  Check a new pay stub
+                  {t("Check a new pay stub")}
                 </button>
               </div>
               <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Current upload only</p>
-                <h2 className="mt-3 text-xl font-bold">{currentStub?.employer_name ?? "No paystub has been extracted"}</h2>
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{t("Current upload only")}</p>
+                <h2 className="mt-3 text-xl font-bold">{currentStub?.employer_name ?? t("No paystub has been extracted")}</h2>
                 {currentStub ? <>
-                  <p className="mt-2 text-sm text-slate-600">{currentStub.pay_period_start ?? "Start not provided"} to {currentStub.pay_period_end ?? "End not provided"} · Pay date {currentStub.pay_date ?? "not provided"}</p>
+                  <p className="mt-2 text-sm text-slate-600">{t("{start} to {end} · Pay date {date}", { start: currentStub.pay_period_start ?? t("Start not provided"), end: currentStub.pay_period_end ?? t("End not provided"), date: currentStub.pay_date ?? t("not provided") })}</p>
                   <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-                    <div><dt className="text-sm text-slate-500">Gross pay</dt><dd className="mt-1 text-2xl font-bold">{amount(currentStub.gross_pay, currentStub.currency)}</dd></div>
-                    <div><dt className="text-sm text-slate-500">Net pay</dt><dd className="mt-1 text-2xl font-bold">{amount(currentStub.net_pay, currentStub.currency)}</dd></div>
-                    <div><dt className="text-sm text-slate-500">Regular hours / hourly rate</dt><dd className="mt-1 font-bold">{currentStub.regular_hours ?? "Not provided"} / {amount(currentStub.regular_hourly_rate, currentStub.currency)}</dd></div>
-                    <div><dt className="text-sm text-slate-500">Overtime hours / pay listed</dt><dd className="mt-1 font-bold">{currentStub.overtime_hours ?? "Not provided"} / {amount(currentStub.overtime_pay, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">{t("Gross pay")}</dt><dd className="mt-1 text-2xl font-bold">{amount(currentStub.gross_pay, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">{t("Net pay")}</dt><dd className="mt-1 text-2xl font-bold">{amount(currentStub.net_pay, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">{t("Regular hours / hourly rate")}</dt><dd className="mt-1 font-bold">{currentStub.regular_hours ?? t("Not provided")} / {amount(currentStub.regular_hourly_rate, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">{t("Overtime hours / pay listed")}</dt><dd className="mt-1 font-bold">{currentStub.overtime_hours ?? t("Not provided")} / {amount(currentStub.overtime_pay, currentStub.currency)}</dd></div>
                   </dl>
                   <EnteredWage hourlyWage={profile?.hourlyWage} stub={currentStub} onEdit={() => setAuthStep("editOccupation")} className="mt-5" />
-                  <p className="mt-5 text-sm text-slate-600">Extracted values require review. No unpaid-wage amount or legal conclusion is calculated.</p>
-                </> : <p className="mt-3 text-sm text-slate-600">Choose a document and approve its redacted text. Older demo paychecks are not evidence for your upload.</p>}
-                <button onClick={() => setDrawer("stub")} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? "Review this paystub" : "Upload a paystub"}</button>
+                  <p className="mt-5 text-sm text-slate-600">{t("Extracted values require review. No unpaid-wage amount or legal conclusion is calculated.")}</p>
+                </> : <p className="mt-3 text-sm text-slate-600">{t("Upload a paystub to see its hours, rates, deductions and pay here.")}</p>}
+                <button onClick={() => setDrawer("stub")} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? t("Review this paystub") : t("Upload a paystub")}</button>
               </section>
             </>
           ) : (
             <>
               <div>
                 <p className="text-sm font-bold text-emerald-700">
-                  SUPPORT & OPPORTUNITY
+                  {t("SUPPORT & OPPORTUNITY")}
                 </p>
                 <h1 className="mt-2 text-3xl font-bold tracking-tight">
-                  Get help
+                  {t("Get help")}
                 </h1>
                 <p className="mt-2 text-slate-600">
-                  Take action on missing pay or find a better opportunity
-                  nearby.
+                  {t("Take action on missing pay or find a better opportunity nearby.")}
                 </p>
               </div>
               <section className="mt-8 grid gap-5 md:grid-cols-3">
@@ -665,13 +669,13 @@ export default function App() {
                 >
                   <Icon name="file" className="size-7 text-emerald-200" />
                   <h2 className="mt-8 text-xl font-bold">
-                    Request a wage claim
+                    {t("Request a wage claim")}
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-emerald-100">
-                    Understand what additional evidence a pay review may need.
+                    {t("Understand what additional evidence a pay review may need.")}
                   </p>
                   <span className="mt-6 block text-sm font-bold">
-                    Start claim →
+                    {t("Start claim →")}
                   </span>
                 </button>
                 <button
@@ -679,12 +683,12 @@ export default function App() {
                   className="rounded-3xl border border-slate-200 bg-white p-6 text-left"
                 >
                   <Icon name="shield" className="size-7 text-violet-700" />
-                  <h2 className="mt-8 text-xl font-bold">Find a lawyer</h2>
+                  <h2 className="mt-8 text-xl font-bold">{t("Find a lawyer")}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    Connect with nearby legal aid and worker centers.
+                    {t("Connect with nearby legal aid and worker centers.")}
                   </p>
                   <span className="mt-6 block text-sm font-bold text-emerald-700">
-                    See local help →
+                    {t("See local help →")}
                   </span>
                 </button>
                 <button
@@ -692,28 +696,28 @@ export default function App() {
                   className="rounded-3xl border border-slate-200 bg-white p-6 text-left"
                 >
                   <Icon name="briefcase" className="size-7 text-sky-700" />
-                  <h2 className="mt-8 text-xl font-bold">Find a better job</h2>
+                  <h2 className="mt-8 text-xl font-bold">{t("Find a better job")}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     {profile?.hourlyWage
-                      ? `See nearby ${profile.occupation} jobs paying more than your ${dollars(profile.hourlyWage)}/hour.`
+                      ? t("See nearby {job} jobs paying more than your {wage}/hour.", { job: profile.occupation ?? "", wage: dollars(profile.hourlyWage) })
                       : currentStub?.regular_hourly_rate && isUsd(currentStub.currency)
-                        ? `Compare nearby advertised pay with the current document's ${amount(currentStub.regular_hourly_rate, currentStub.currency)} hourly rate.`
-                        : `See what ${profile?.occupation ?? "similar"} jobs pay near you.`}
+                        ? t("Compare nearby advertised pay with your pay stub's {rate} hourly rate.", { rate: amount(currentStub.regular_hourly_rate, currentStub.currency) })
+                        : t("See what {job} jobs pay near you.", { job: profile?.occupation ?? t("similar") })}
                   </p>
                   <span className="mt-6 block text-sm font-bold text-emerald-700">
-                    Browse jobs →
+                    {t("Browse jobs →")}
                   </span>
                 </button>
               </section>
               <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6">
                 <h2 className="text-lg font-bold">
-                  Trusted help near {shortLocation}
+                  {t("Trusted help near {place}", { place: shortLocation })}
                 </h2>
                 <div className="mt-5 grid gap-4 sm:grid-cols-3">
                   {[
-                    ["Make the Road NY", "Worker center · 0.8 mi"],
-                    ["Legal Aid Society", "Legal clinic · 2.1 mi"],
-                    ["Mexican Consulate", "Consular help · 4.6 mi"],
+                    ["Make the Road NY", tk("Worker center · 0.8 mi")],
+                    ["Legal Aid Society", tk("Legal clinic · 2.1 mi")],
+                    ["Mexican Consulate", tk("Consular help · 4.6 mi")],
                   ].map(([name, detail]) => (
                     <button
                       key={name}
@@ -722,7 +726,7 @@ export default function App() {
                     >
                       <span className="font-bold">{name}</span>
                       <span className="mt-1 block text-sm text-slate-500">
-                        {detail}
+                        {t(detail)}
                       </span>
                     </button>
                   ))}
@@ -743,7 +747,7 @@ export default function App() {
             }`}
           >
             <Icon name={item.icon} className="size-5" />
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
       </nav>
@@ -752,8 +756,8 @@ export default function App() {
       {!drawer && (
         <button
           onClick={() => openAssistant("ask")}
-          aria-label="Ask the FairShift assistant"
-          title="Ask the FairShift assistant"
+          aria-label={t("Ask the FairShift assistant")}
+          title={t("Ask the FairShift assistant")}
           className="group fixed bottom-24 right-5 z-20 flex items-center gap-2 rounded-full bg-emerald-700 p-4 text-white shadow-lg shadow-emerald-900/25 transition hover:bg-emerald-800 lg:bottom-8 lg:right-8"
         >
           <svg aria-hidden="true" className="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -761,7 +765,7 @@ export default function App() {
             <path d="M8.5 9.5h7M8.5 12.5h4.5" />
           </svg>
           <span className="hidden pr-1 text-sm font-bold group-hover:inline">
-            Ask FairShift
+            {t("Ask FairShift")}
           </span>
         </button>
       )}
@@ -780,24 +784,24 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                  FairShift assistant
+                  {t("FairShift assistant")}
                 </p>
                 <h2 className="mt-1 text-xl font-bold">
                   {drawer === "stub"
-                    ? "Check your pay stub"
+                    ? t("Check your pay stub")
                     : drawer === "assistant"
-                      ? "Ask about your pay"
+                      ? t("Ask about your pay")
                     : drawer === "claim"
-                      ? "Start a wage claim"
+                      ? t("Start a wage claim")
                       : drawer === "lawyer"
-                        ? "Help near you"
-                        : "Jobs that pay more"}
+                        ? t("Help near you")
+                        : t("Jobs that pay more")}
                 </h2>
               </div>
               <button
                 onClick={() => setDrawer(null)}
                 className="grid size-10 place-items-center rounded-full bg-slate-100 text-xl"
-                aria-label="Close"
+                aria-label={t("Close")}
               >
                 ×
               </button>
@@ -826,13 +830,13 @@ export default function App() {
             {drawer === "claim" && (
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-sm font-bold text-slate-900">Unpaid wages: not determined</p>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">A paystub extraction does not establish a wage violation. A claim needs relevant work records, pay agreements and applicable rules reviewed separately. No evidence packet has been assembled.</p>
+                  <p className="text-sm font-bold text-slate-900">{t("Unpaid wages: not determined")}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{t("A paystub extraction does not establish a wage violation. A claim needs relevant work records, pay agreements and applicable rules reviewed separately. No evidence packet has been assembled.")}</p>
                 </div>
-                {currentStub && <p className="mt-5 text-sm leading-relaxed text-slate-600">The current upload lists overtime pay of {amount(currentStub.overtime_pay, currentStub.currency)} for {currentStub.overtime_hours ?? "an unknown number of"} overtime hours. Missing fields are unknown.</p>}
-                <button onClick={() => setDrawer("stub")} className="mt-6 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white">Review current pay information</button>
-                <button onClick={() => openAssistant("claim")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">Write my claim summary with the assistant</button>
-                <button onClick={() => setDrawer("lawyer")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">Find independent legal help</button>
+                {currentStub && <p className="mt-5 text-sm leading-relaxed text-slate-600">{t("The current upload lists overtime pay of {amount} for {hours} overtime hours. Missing fields are unknown.", { amount: amount(currentStub.overtime_pay, currentStub.currency), hours: currentStub.overtime_hours ?? t("an unknown number of") })}</p>}
+                <button onClick={() => setDrawer("stub")} className="mt-6 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white">{t("Review current pay information")}</button>
+                <button onClick={() => openAssistant("claim")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">{t("Write my claim summary with the assistant")}</button>
+                <button onClick={() => setDrawer("lawyer")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">{t("Find independent legal help")}</button>
               </div>
             )}
 
@@ -858,5 +862,14 @@ export default function App() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function App() {
+  const [language, setLanguage] = useState("English")
+  return (
+    <I18nProvider language={language}>
+      <AppInner language={language} setLanguage={setLanguage} />
+    </I18nProvider>
   )
 }

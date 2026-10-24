@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { getAuthConfig, signInWithGoogle, type User } from "../api"
+import { useT } from "../i18n"
 
 type GoogleIdentity = {
   accounts: {
@@ -44,6 +45,7 @@ function loadGoogleScript() {
 // The official "Sign in with Google" button. Calls onSignedIn once the
 // FairShift server has verified the Google account and started a session.
 export function GoogleSignIn({ onSignedIn }: { onSignedIn: (user: User) => void }) {
+  const t = useT()
   const buttonRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState("")
   const [signingIn, setSigningIn] = useState(false)
@@ -56,7 +58,7 @@ export function GoogleSignIn({ onSignedIn }: { onSignedIn: (user: User) => void 
       .then(([config, google]) => {
         if (cancelled || !buttonRef.current) return
         if (!config.googleClientId) {
-          setError("Google sign-in isn't set up on the server yet.")
+          setError(t("Google sign-in isn't set up on the server yet."))
           return
         }
         google.accounts.id.initialize({
@@ -78,14 +80,14 @@ export function GoogleSignIn({ onSignedIn }: { onSignedIn: (user: User) => void 
           size: "large",
           shape: "pill",
           text: "continue_with",
+          // Google writes the button in the page's language (set from the language picker).
+          locale: document.documentElement.lang || "en",
           width: Math.min(buttonRef.current.offsetWidth || 360, 400),
         })
       })
       .catch(() => {
         if (!cancelled) {
-          setError(
-            "We couldn't load Google sign-in. Check your connection and refresh.",
-          )
+          setError(t("We couldn't load Google sign-in. Check your connection and refresh."))
         }
       })
     return () => {
@@ -101,7 +103,7 @@ export function GoogleSignIn({ onSignedIn }: { onSignedIn: (user: User) => void 
       />
       {signingIn && (
         <p className="mt-3 text-center text-sm font-semibold text-emerald-700">
-          Signing you in…
+          {t("Signing you in…")}
         </p>
       )}
       {error && (
