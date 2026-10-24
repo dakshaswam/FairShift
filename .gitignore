@@ -19,3 +19,6 @@ logs/
 # beside it.
 /.plugins/
 /.opencode-skills/
+
+# Local user store (server/data/users.json)
+/server/data/

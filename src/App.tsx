@@ -1,6 +1,9 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { getCurrentUser, saveProfile, signOut, type User } from "./api"
+import { GoogleSignIn } from "./components/GoogleSignIn"
 import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
+import { OccupationStep } from "./components/OccupationStep"
 
 type IconName = "home" | "clock" | "file" | "help" | "shield" | "camera" | "chevron" | "briefcase" | "map" | "volume" | "check"
 
@@ -91,9 +94,11 @@ const navItems: { id: string; label: string; icon: IconName }[] = [
 ]
 
 export default function App() {
-  const [authStep, setAuthStep] = useState<"login" | "language" | "app">(
-    "login",
-  )
+  const [authStep, setAuthStep] = useState<
+    "loading" | "login" | "language" | "occupation" | "editOccupation" | "app"
+  >("loading")
+  const [user, setUser] = useState<User | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [active, setActive] = useState("home")
   const [language, setLanguage] = useState("English")
   const [clockedIn, setClockedIn] = useState(false)
@@ -104,6 +109,48 @@ export default function App() {
   const [messages, setMessages] = useState([
     "I found a possible overtime issue. You worked 44 hours, but all 44 were paid at your regular $18 rate.",
   ])
+
+  const profile = user?.profile
+  const firstName = user?.name.split(" ")[0] ?? ""
+  const initials = (user?.name ?? "")
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+  const workLocation = profile?.location || "Queens, NY"
+  const shortLocation = workLocation.split(",")[0]
+
+  // Returning workers go straight to the app; new ones pick a language and job first.
+  const enterApp = (signedIn: User) => {
+    setUser(signedIn)
+    if (signedIn.profile?.language) setLanguage(signedIn.profile.language)
+    setAuthStep(signedIn.profile?.occupation ? "app" : "language")
+  }
+
+  useEffect(() => {
+    getCurrentUser()
+      .then((signedIn) => (signedIn ? enterApp(signedIn) : setAuthStep("login")))
+      .catch(() => setAuthStep("login"))
+  }, [])
+
+  const changeLanguage = (value: string) => {
+    setLanguage(value)
+    if (user?.profile?.occupation) {
+      saveProfile({ language: value })
+        .then(setUser)
+        .catch(() => {})
+    }
+  }
+
+  const logOut = async () => {
+    setMenuOpen(false)
+    await signOut().catch(() => {})
+    setUser(null)
+    setDrawer(null)
+    setActive("home")
+    setAuthStep("login")
+  }
 
   const speak = (text: string) => {
     if ("speechSynthesis" in window) {
@@ -146,7 +193,33 @@ export default function App() {
     setMessage("")
   }
 
-  if (authStep === "login") {
+  if (authStep === "loading") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-stone-50">
+        <span className="grid size-12 animate-pulse place-items-center rounded-2xl bg-emerald-700 text-white">
+          <Icon name="shield" className="size-7" />
+        </span>
+      </div>
+    )
+  }
+
+  if ((authStep === "occupation" || authStep === "editOccupation") && user) {
+    return (
+      <OccupationStep
+        user={user}
+        language={language}
+        onSaved={(saved) => {
+          setUser(saved)
+          setAuthStep("app")
+        }}
+        onCancel={
+          authStep === "editOccupation" ? () => setAuthStep("app") : undefined
+        }
+      />
+    )
+  }
+
+  if (authStep === "login" || !user) {
     return (
       <div className="grid min-h-screen place-items-center bg-emerald-950 px-5">
         <main className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl sm:p-10">
@@ -163,16 +236,12 @@ export default function App() {
             Securely track your work, understand every paycheck, and get help
             when something is wrong.
           </p>
-          <button
-            onClick={() => setAuthStep("language")}
-            className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-5 py-3.5 font-bold shadow-sm transition hover:bg-slate-50"
-          >
-            <span className="text-lg font-black text-blue-600">G</span> Continue
-            with Google
-          </button>
+          <div className="mt-8">
+            <GoogleSignIn onSignedIn={enterApp} />
+          </div>
           <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
-            Frontend demo: Google authentication is simulated. No account data
-            is sent.
+            We only use your name and email to keep your records safe. We never
+            share them with your employer.
           </p>
         </main>
       </div>
@@ -216,7 +285,7 @@ export default function App() {
             ))}
           </div>
           <button
-            onClick={() => setAuthStep("app")}
+            onClick={() => setAuthStep("occupation")}
             className="mt-7 w-full rounded-xl bg-emerald-700 px-6 py-4 font-bold text-white hover:bg-emerald-800"
           >
             Continue
@@ -246,7 +315,7 @@ export default function App() {
             <select
               id="language"
               value={language}
-              onChange={(event) => setLanguage(event.target.value)}
+              onChange={(event) => changeLanguage(event.target.value)}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold outline-none focus:border-emerald-700"
             >
               <option>English</option>
@@ -254,12 +323,57 @@ export default function App() {
               <option>हिन्दी</option>
               <option>Tiếng Việt</option>
             </select>
-            <button
-              aria-label="Profile"
-              className="grid size-10 place-items-center rounded-full bg-amber-100 text-sm font-bold text-amber-900"
-            >
-              MR
-            </button>
+            <div className="relative">
+              <button
+                aria-label="Profile"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="grid size-10 place-items-center overflow-hidden rounded-full bg-amber-100 text-sm font-bold text-amber-900"
+              >
+                {user.picture ? (
+                  <img
+                    src={user.picture}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-12 z-40 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                  <div className="p-3">
+                    <p className="font-bold">{user.name}</p>
+                    <p className="truncate text-sm text-slate-500">
+                      {user.email}
+                    </p>
+                    {profile?.occupation && (
+                      <p className="mt-2 text-sm text-slate-700">
+                        {profile.occupation}
+                        {profile.location ? ` · ${profile.location}` : ""}
+                        {profile.hourlyWage ? ` · $${profile.hourlyWage}/hr` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setAuthStep("editOccupation")
+                    }}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100"
+                  >
+                    Edit my job
+                  </button>
+                  <button
+                    onClick={logOut}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -300,7 +414,12 @@ export default function App() {
                     Tuesday, June 18
                   </p>
                   <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                    Good morning, Marisol
+                    {new Date().getHours() < 12
+                      ? "Good morning"
+                      : new Date().getHours() < 18
+                        ? "Good afternoon"
+                        : "Good evening"}
+                    , {firstName}
                   </h1>
                   <p className="mt-2 text-slate-600">
                     Let’s make sure every hour counts.
@@ -447,7 +566,7 @@ export default function App() {
                       </h2>
                       <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
                         Find trusted worker centers, legal aid, and your
-                        consulate near Queens.
+                        consulate near {shortLocation}.
                       </p>
                     </div>
                   </div>
@@ -692,7 +811,9 @@ export default function App() {
                   <Icon name="briefcase" className="size-7 text-sky-700" />
                   <h2 className="mt-8 text-xl font-bold">Find a better job</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    See nearby jobs paying more than your current $18/hour.
+                    {profile?.hourlyWage
+                      ? `See nearby ${profile.occupation} jobs paying more than your $${profile.hourlyWage}/hour.`
+                      : `See what ${profile?.occupation ?? "similar"} jobs pay near you.`}
                   </p>
                   <span className="mt-6 block text-sm font-bold text-emerald-700">
                     Browse jobs →
@@ -700,7 +821,9 @@ export default function App() {
                 </button>
               </section>
               <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6">
-                <h2 className="text-lg font-bold">Trusted help near Queens</h2>
+                <h2 className="text-lg font-bold">
+                  Trusted help near {shortLocation}
+                </h2>
                 <div className="mt-5 grid gap-4 sm:grid-cols-3">
                   {[
                     ["Make the Road NY", "Worker center · 0.8 mi"],
@@ -907,15 +1030,16 @@ export default function App() {
             )}
 
             {drawer === "lawyer" && (
-              <LocalHelp language={language} defaultLocation="Queens, NY" />
+              <LocalHelp language={language} defaultLocation={workLocation} />
             )}
 
             {drawer === "jobs" && (
               <JobPay
                 language={language}
-                defaultLocation="Queens, NY"
-                defaultJobTitle="Barista"
-                defaultWage={18}
+                defaultLocation={workLocation}
+                defaultJobTitle={profile?.occupation ?? ""}
+                defaultWage={profile?.hourlyWage ?? undefined}
+                autoSearch
               />
             )}
           </aside>

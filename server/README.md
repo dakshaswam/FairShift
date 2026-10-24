@@ -1,6 +1,6 @@
 # FairShift SerpApi service
 
-Backend for two FairShift features, both powered by [SerpApi](https://serpapi.com):
+Backend for Google sign-in and worker profiles, plus two features powered by [SerpApi](https://serpapi.com):
 
 1. **Help near you**: legal aid, worker centers and the worker's consulate (Google Maps), searched in the worker's language.
 2. **Know your worth**: what similar jobs nearby pay, compared with the worker's hourly wage (Google Jobs).
@@ -18,6 +18,8 @@ Config lives in `server/.env`, which git ignores:
 
 ```
 SERPAPI_KEY=...            # required
+GOOGLE_CLIENT_ID=...       # required for sign-in (Google Cloud → Credentials → OAuth client ID, type "Web application")
+SESSION_SECRET=...         # long random string that signs session cookies
 PORT=8787
 CACHE_TTL_MINUTES=360      # identical searches are cached in memory to save credits
 CORS_ORIGIN=*              # optional
@@ -27,12 +29,37 @@ The Vite dev server proxies `/api` to `http://localhost:8787`. Set `FAIRSHIFT_AP
 
 ## Merging into another Express backend
 
-Everything is in one router:
-
 ```js
+import { authRouter, requireUser } from "./server/src/auth.js"
 import { serpRouter } from "./server/src/routes.js"
-app.use("/api", serpRouter)   // gives /api/help, /api/jobs/compare, /api/meta
+app.use(express.json())
+app.use("/api", authRouter)   // /api/auth/*, /api/profile
+app.use("/api", serpRouter)   // /api/help, /api/jobs/compare, /api/meta
+app.get("/api/shifts", requireUser, (req, res) => { /* req.user is the signed-in worker */ })
 ```
+
+User profiles are stored in `server/data/users.json`, which git ignores. To use a real database, replace the three functions in `src/users.js`.
+
+## Sign-in
+
+The frontend shows Google's "Sign in with Google" button and sends the resulting ID token to the server. The server verifies the token with Google and sets a signed, httpOnly `fairshift_session` cookie that lasts 30 days. No client secret is needed.
+
+In Google Cloud, every URL the app is opened from must be listed under **Authorized JavaScript origins**: `http://localhost:8443` now, and the demo or deploy URL later. While the consent screen is in Testing mode, only accounts listed as **Test users** can sign in.
+
+| endpoint | |
+|---|---|
+| `GET /api/auth/config` | `{ googleClientId }` for the frontend |
+| `POST /api/auth/google` | body `{ credential }` (Google ID token) → `{ user }` and sets the session cookie |
+| `GET /api/auth/me` | `{ user }`, or 401 if not signed in |
+| `POST /api/auth/logout` | clears the cookie |
+| `PUT /api/profile` | body `{ occupation, location, hourlyWage, language }` (any subset) → `{ user }` |
+
+```jsonc
+{ "user": { "id": "<google sub>", "email": "...", "name": "...", "picture": "...",
+  "profile": { "occupation": "Line cook", "location": "Houston, TX", "hourlyWage": 13.5, "language": "Español" } } }
+```
+
+`profile` is `null` until the worker finishes onboarding. The app asks for their occupation on first sign-in, and "Find a better job" uses it automatically.
 
 ## Endpoints
 

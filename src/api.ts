@@ -85,17 +85,88 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
-async function get<T>(path: string, params: Record<string, string | number | undefined>) {
+export type Profile = {
+  occupation?: string
+  location?: string
+  hourlyWage?: number | null
+  language?: string
+}
+
+export type User = {
+  id: string
+  email: string
+  name: string
+  picture: string | null
+  profile: Profile | null
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message)
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit) {
+  const response = await fetch(`${API_BASE}/api${path}`, {
+    credentials: "include",
+    ...init,
+    headers: init?.body ? { "Content-Type": "application/json" } : undefined,
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new ApiError(
+      data.error ?? "We couldn't reach FairShift. Please try again.",
+      response.status,
+    )
+  }
+  return data as T
+}
+
+function get<T>(path: string, params: Record<string, string | number | undefined>) {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") query.set(key, String(value))
   }
-  const response = await fetch(`${API_BASE}/api${path}?${query}`)
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error(data.error ?? "We couldn't reach FairShift. Please try again.")
+  return request<T>(`${path}?${query}`)
+}
+
+export function getAuthConfig() {
+  return request<{ googleClientId: string | null }>("/auth/config")
+}
+
+// Resolves to null when nobody is signed in.
+export async function getCurrentUser() {
+  try {
+    return (await request<{ user: User }>("/auth/me")).user
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null
+    throw error
   }
-  return data as T
+}
+
+export async function signInWithGoogle(credential: string) {
+  return (
+    await request<{ user: User }>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ credential }),
+    })
+  ).user
+}
+
+export function signOut() {
+  return request<{ ok: true }>("/auth/logout", { method: "POST" })
+}
+
+export async function saveProfile(profile: Profile) {
+  return (
+    await request<{ user: User }>("/profile", {
+      method: "PUT",
+      body: JSON.stringify(profile),
+    })
+  ).user
 }
 
 export function findHelp(params: {

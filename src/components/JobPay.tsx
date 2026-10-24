@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { compareJobPay, speakIn, type Job, type JobsResponse } from "../api"
 
 const money = (n: number) => `$${n.toFixed(2).replace(/\.00$/, "")}`
@@ -20,15 +20,18 @@ export function JobPay({
   defaultLocation,
   defaultJobTitle,
   defaultWage,
+  autoSearch = false,
 }: {
   language: string
   defaultLocation: string
   defaultJobTitle: string
-  defaultWage: number
+  defaultWage?: number
+  // Run the search on open, e.g. when the job comes from the worker's profile.
+  autoSearch?: boolean
 }) {
   const [jobTitle, setJobTitle] = useState(defaultJobTitle)
   const [location, setLocation] = useState(defaultLocation)
-  const [wage, setWage] = useState(String(defaultWage))
+  const [wage, setWage] = useState(defaultWage ? String(defaultWage) : "")
   const [data, setData] = useState<JobsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -58,6 +61,11 @@ export function JobPay({
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (autoSearch && defaultJobTitle && defaultLocation) search()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const input =
     "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-emerald-700"
