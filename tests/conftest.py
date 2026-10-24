@@ -1,4 +1,4 @@
-"""Fictional fixtures only; unit tests never contact Gemini."""
+"""Fictional fixtures only; unit tests never contact Muse."""
 
 import json
 from pathlib import Path

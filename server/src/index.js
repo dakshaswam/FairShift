@@ -24,7 +24,7 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     serpApiConfigured: Boolean(process.env.SERPAPI_KEY),
     googleSignInConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
-    assistantConfigured: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+    assistantConfigured: Boolean(process.env.MUSE_API_KEY),
   })
 })
 

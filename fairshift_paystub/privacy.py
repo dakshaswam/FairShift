@@ -188,6 +188,23 @@ def _regex_spans(text: str) -> list[_Span]:
     return spans
 
 
+# Paystub field labels. NER sometimes tags a label as a name or place, especially
+# right after a redacted value ("Name: [NAME_1] Email:" reads as a person named
+# "Email"). A detection made only of these words is a label, not an identifier.
+_LABEL_WORDS = frozenset("""
+    name employee employer email e mail phone telephone tel mobile cell fax address street city
+    state zip postal code ssn id number no account routing bank pay date period gross net
+    deduction deductions total current ytd hours rate regular overtime tips description summary
+    earnings statement deposit direct amount federal social security medicare income tax
+    currency usd check stub payroll department dept location
+""".split())
+
+
+def _is_label(fragment: str) -> bool:
+    words = re.findall(r"[A-Za-z]+", fragment)
+    return bool(words) and all(word.lower() in _LABEL_WORDS for word in words)
+
+
 def _presidio_spans(text: str) -> list[_Span]:
     """Create an explicitly offline analyzer without default network recognizers."""
     try:
@@ -231,6 +248,7 @@ def _presidio_spans(text: str) -> list[_Span]:
         return [
             _Span(item.start, item.end, kinds[item.entity_type]) for item in results
             if text[item.start:item.end] not in _CURRENCY_CODES
+            and not _is_label(text[item.start:item.end])
         ]
     except Exception:
         raise RedactionError(

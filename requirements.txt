@@ -1,8 +1,10 @@
-google-genai>=2.33,<3
+httpx>=0.27,<1
 pydantic>=2.10,<3
 pdfplumber>=0.11,<1
 pypdfium2>=4.30,<6
 Pillow>=11,<13
 presidio-analyzer>=2.2,<3
 spacy>=3.8,<4
+# preshed 3.0.14 breaks loading spaCy models (OverflowError in the tokenizer).
+preshed>=3.0.10,<3.0.14
 python-dotenv>=1,<2

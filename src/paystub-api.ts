@@ -31,7 +31,7 @@ export type PaystubResult = {
   paystub: Paystub
   assistant_message: string
   trace: TraceStage[]
-  source: "gemini_live" | "mocked"
+  source: "muse_live" | "mocked"
 }
 
 const HEADERS = { "X-FairShift-Client": "paystub-ui" }
@@ -46,8 +46,12 @@ export class PaystubRequestError extends Error {
 
 async function responseData(response: Response) {
   const data = await response.json().catch(() => null)
+  // The dev proxy answers 502/504 without JSON when the Python service isn't running.
+  if (!data && [502, 503, 504].includes(response.status)) {
+    throw new PaystubRequestError("The paystub service isn't running. Start it with `npm run dev:paystub`, then try again.", "request")
+  }
   if (!response.ok) {
-    const knownStages = ["request", "approval", "local_text_extraction", "redaction", "gemini", "validation"]
+    const knownStages = ["request", "approval", "local_text_extraction", "redaction", "model", "validation"]
     const stage = knownStages.includes(data?.stage) ? data.stage : "request"
     throw new PaystubRequestError(typeof data?.error === "string" ? data.error : "Paystub processing failed. Check the local paystub service and try again.", stage)
   }
@@ -86,22 +90,53 @@ export async function extractPaystub(prepared: PreparedPaystub, approvedText: st
     }),
     signal,
   }))
-  if (data.upload_id !== prepared.upload_id || !["gemini_live", "mocked"].includes(data.source) || !data.paystub || typeof data.assistant_message !== "string" || !Array.isArray(data.trace)) {
+  if (data.upload_id !== prepared.upload_id || !["muse_live", "mocked"].includes(data.source) || !data.paystub || typeof data.assistant_message !== "string" || !Array.isArray(data.trace)) {
     throw new Error("The result did not match the current upload. Choose the document again.")
   }
   return data as PaystubResult
 }
 
+// Job pay comparisons are in US dollars, so only a dollar paystub rate can be compared.
+export type ProcessedPaystub = PaystubResult & {
+  sent_text: string
+  redaction_retries: number
+  forced: boolean
+}
+
+// One request: local OCR and redaction, then an automatic send to Muse. There is
+// no manual approval step; the response includes the exact text that was sent.
+export async function processPaystub(file: File, signal: AbortSignal): Promise<ProcessedPaystub> {
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
+  if (![".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"].includes(extension)) {
+    throw new Error("Choose a PDF, PNG, JPEG, TIFF, BMP or WebP paystub.")
+  }
+  const data = await responseData(await fetch("/api/paystubs/process", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { ...HEADERS, "Content-Type": file.type || "application/octet-stream", "X-Document-Type": extension },
+    body: file,
+    signal,
+  }))
+  if (!["muse_live", "mocked"].includes(data.source) || !data.paystub || typeof data.assistant_message !== "string"
+      || typeof data.sent_text !== "string" || !Array.isArray(data.trace)) {
+    throw new Error("The paystub result was incomplete. Choose the document again.")
+  }
+  return data as ProcessedPaystub
+}
+
+export const isUsd = (currency: string | null) => currency !== null && ["USD", "US$", "$"].includes(currency.trim().toUpperCase())
+
+export const dollars = (value: number) =>
+  `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
 export function amount(value: string | null | undefined, currency: string | null): string {
   if (value === null || value === undefined) return "Not provided"
+  if (isUsd(currency) && Number.isFinite(Number(value))) return dollars(Number(value))
   return currency ? `${currency} ${value}` : `${value} (currency not provided)`
 }
 
-// Job pay comparisons are in US dollars, so only a dollar paystub rate can be compared.
-export const isUsd = (currency: string | null) => currency !== null && ["USD", "US$", "$"].includes(currency.trim().toUpperCase())
-
 export function extractionSourceLabel(source: PaystubResult["source"]): string {
-  return source === "gemini_live" ? "Real Gemini request · checked locally" : "Mocked extraction · test data, not a live Gemini response"
+  return source === "muse_live" ? "Real Muse request · checked locally" : "Mocked extraction · test data, not a live Muse response"
 }
 
 const quantity = (value: string | null) => value ?? "not provided"

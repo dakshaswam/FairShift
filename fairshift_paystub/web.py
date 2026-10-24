@@ -23,8 +23,8 @@ from pathlib import Path
 from threading import BoundedSemaphore
 
 from .documents import MAX_FILE_BYTES
-from .errors import ApprovalError, DocumentError, FairShiftError, GeminiError, RedactionError, ResponseError
-from .pipeline import MAX_TEXT, complete_paystub, prepare_paystub_bytes
+from .errors import ApprovalError, DocumentError, FairShiftError, ModelError, RedactionError, ResponseError
+from .pipeline import MAX_TEXT, auto_send_paystub, complete_paystub, prepare_paystub_bytes
 from .quiet import sensitive_operation
 from .response import build_response
 
@@ -34,14 +34,15 @@ _ID = re.compile(r"^[A-Za-z0-9_-]{24,80}$")
 
 class PaystubApplication:
     def __init__(self, *, prepare=prepare_paystub_bytes, complete=complete_paystub,
-                 source="gemini_live", clock=time.time):
+                 auto_send=auto_send_paystub, source="muse_live", clock=time.time):
         self.prepare = prepare
         self.complete = complete
+        self.auto_send = auto_send
         self.source = source  # Tests explicitly use "mocked"; never selected via HTTP/env.
         self.clock = clock
         self.secret = secrets.token_bytes(32)
         # Upload IDs (random, no document content) whose extraction succeeded,
-        # with their ticket expiry, so a ticket can't trigger repeat Gemini calls.
+        # with their ticket expiry, so a ticket can't trigger repeat model calls.
         self.completed: dict[str, float] = {}
 
     def _ticket(self, upload_id: str, session: str) -> str:
@@ -79,7 +80,7 @@ class PaystubApplication:
 
     def extract_document(self, data: dict, session: str) -> dict:
         if not isinstance(data, dict) or data.get("approved") is not True:
-            raise ApprovalError("Review and explicitly approve the exact redacted text before sending it to Gemini.")
+            raise ApprovalError("Review and explicitly approve the exact redacted text before sending it to Muse.")
         upload_id, text = data.get("upload_id"), data.get("approved_text")
         if not isinstance(upload_id, str) or not _ID.fullmatch(upload_id):
             raise ApprovalError("A valid current upload is required. Upload and review the document again.")
@@ -87,7 +88,7 @@ class PaystubApplication:
         if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
             raise ApprovalError("Approved text is empty or too long. Correct the preview before sending.")
         stub = self.complete(text, approved=True)
-        # Single use once it succeeds; a failed attempt (say, a Gemini error) can be retried.
+        # Single use once it succeeds; a failed attempt (say, a Muse timeout) can be retried.
         now = self.clock()
         self.completed = {key: expires for key, expires in self.completed.items() if expires >= now}
         self.completed[upload_id] = now + 900
@@ -98,7 +99,31 @@ class PaystubApplication:
                 "assistant_message": message, "source": self.source,
                 "trace": [{"stage": "user_approval", "status": "passed"},
                           {"stage": "outbound_privacy_check", "status": "passed", "mode": "local"},
-                          {"stage": "gemini", "status": "passed", "mode": self.source},
+                          {"stage": "muse", "status": "passed", "mode": self.source},
+                          {"stage": "pydantic_validation", "status": "passed", "mode": "local"},
+                          {"stage": "deterministic_checks", "status": "passed", "mode": "local"},
+                          {"stage": "chatbot_response", "status": "passed", "mode": "validated_data"}]}
+
+
+    def process_document(self, document: bytes, suffix: str) -> dict:
+        """Upload → local OCR and redaction → automatic send to Muse, in one call.
+
+        There is no manual approval step: the redacted text is sent as soon as it
+        is ready (see pipeline.auto_send_paystub for the re-redaction retries).
+        The exact text that was sent is returned so the worker can see it.
+        """
+        redacted = self.prepare(document, suffix)
+        stub, sent, retries, forced = self.auto_send(redacted)
+        upload_id = secrets.token_urlsafe(24)
+        send_stage = {"stage": "automatic_send", "status": "passed",
+                      "mode": "forced" if forced else ("re-redacted" if retries else "clean")}
+        return {"upload_id": upload_id, "paystub": stub.model_dump(mode="json"),
+                "assistant_message": build_response(stub), "source": self.source,
+                "sent_text": sent, "redaction_retries": retries, "forced": forced,
+                "trace": [{"stage": "local_text_extraction", "status": "passed", "mode": "local"},
+                          {"stage": "redaction", "status": "passed", "mode": "local"},
+                          send_stage,
+                          {"stage": "muse", "status": "passed", "mode": self.source},
                           {"stage": "pydantic_validation", "status": "passed", "mode": "local"},
                           {"stage": "deterministic_checks", "status": "passed", "mode": "local"},
                           {"stage": "chatbot_response", "status": "passed", "mode": "validated_data"}]}
@@ -131,7 +156,7 @@ def create_server(address=("127.0.0.1", 8790), *, application=None, allowed_orig
                 return
             self._send(200, {"ok": True, "source": application.source,
                              "ocr_available": bool(shutil.which(os.environ.get("TESSERACT_CMD", "tesseract"))),
-                             "api_configured": bool(os.environ.get("GEMINI_API_KEY")),
+                             "api_configured": bool(os.environ.get("MUSE_API_KEY")),
                              "retention": "memory_only"})
 
         def do_POST(self):
@@ -140,17 +165,18 @@ def create_server(address=("127.0.0.1", 8790), *, application=None, allowed_orig
                     or self.headers.get("X-FairShift-Client") != "paystub-ui"):
                 self._send(403, {"error": "Use the local FairShift upload screen.", "stage": "request"})
                 return
-            if self.path not in {"/api/paystubs/prepare", "/api/paystubs/extract"}:
+            if self.path not in {"/api/paystubs/prepare", "/api/paystubs/extract", "/api/paystubs/process"}:
                 self._send(404, {"error": "Unknown paystub endpoint.", "stage": "request"})
                 return
             if not active.acquire(blocking=False):
                 self._send(503, {"error": "Paystub processing is busy. Please retry shortly.", "stage": "request"})
                 return
-            stage = "local_text_extraction" if self.path.endswith("prepare") else "approval"
+            uploads_file = self.path.endswith(("prepare", "process"))
+            stage = "local_text_extraction" if uploads_file else "approval"
             try:
                 with sensitive_operation():
                     length = int(self.headers.get("Content-Length", "0"))
-                    maximum = MAX_FILE_BYTES if self.path.endswith("prepare") else 1_200_000
+                    maximum = MAX_FILE_BYTES if uploads_file else 1_200_000
                     if not 0 < length <= maximum or self.headers.get("Transfer-Encoding"):
                         self._send(413, {"error": "The upload is empty or too large.", "stage": "request"})
                         return
@@ -166,7 +192,10 @@ def create_server(address=("127.0.0.1", 8790), *, application=None, allowed_orig
                         session = ""
                     if not _ID.fullmatch(session):
                         session = secrets.token_urlsafe(24)
-                    if self.path.endswith("prepare"):
+                    if self.path.endswith("process"):
+                        result = application.process_document(body, self.headers.get("X-Document-Type", ""))
+                        self._send(200, result, session)
+                    elif self.path.endswith("prepare"):
                         result = application.prepare_document(body, self.headers.get("X-Document-Type", ""), session)
                         self._send(200, result, session)
                     else:
@@ -179,8 +208,8 @@ def create_server(address=("127.0.0.1", 8790), *, application=None, allowed_orig
                 self._send(422, {"error": str(error), "stage": "local_text_extraction"})
             except RedactionError as error:
                 self._send(422, {"error": str(error), "stage": "redaction"})
-            except GeminiError as error:
-                self._send(502, {"error": str(error), "stage": "gemini"})
+            except ModelError as error:
+                self._send(502, {"error": str(error), "stage": "model"})
             except ResponseError as error:
                 self._send(422, {"error": str(error), "stage": "validation"})
             except (ValueError, UnicodeError):
@@ -211,7 +240,7 @@ def main():
         "FAIRSHIFT_WEB_ORIGIN", "http://localhost:8443,http://127.0.0.1:8443"
     ).split(",") if value.strip()}
     server = create_server(("127.0.0.1", port), allowed_origins=origins)
-    print(f"FairShift local paystub service ready on port {port}. Raw uploads are not saved; Gemini diagnostics are logged.", flush=True)
+    print(f"FairShift local paystub service ready on port {port}. Raw uploads are not saved; Muse request diagnostics (no document text) are logged.", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

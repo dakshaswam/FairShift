@@ -44,7 +44,7 @@ def test_output_only_explicit_and_refuses_overwrite(expected, monkeypatch, tmp_p
     assert extract.call_count == 2
 
 
-def test_preview_never_calls_gemini_or_creates_output(monkeypatch, tmp_path, capsys):
+def test_preview_never_calls_muse_or_creates_output(monkeypatch, tmp_path, capsys):
     extract = Mock()
     monkeypatch.setattr(cli, "extract_paystub", extract)
     monkeypatch.setattr(cli, "prepare_paystub", Mock(return_value="Employee: [NAME_1]"))

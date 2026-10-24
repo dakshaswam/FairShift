@@ -1,13 +1,11 @@
-// FairShift assistant: a Claude-powered chat that explains pay stubs, checks pay
-// with the deterministic rules engine, and finds real help and jobs nearby via
+// FairShift assistant: a chat on Meta's Muse model that explains pay stubs, checks
+// pay with the deterministic rules engine, and finds real help and jobs nearby via
 // SerpApi. Replies stream to the browser as server-sent events.
 //
-// Conversations live on the server and are append-only: Claude Opus 5.5 ties its
-// thinking blocks to the exact history that produced them, so the browser never
-// resends or edits past turns.
+// Muse is called through Meta's OpenAI-compatible Chat Completions API. History
+// lives on the server and only grows by whole turns; the browser never resends it.
 
 import { randomUUID } from "node:crypto"
-import Anthropic from "@anthropic-ai/sdk"
 import express, { Router } from "express"
 import { requireUser } from "./auth.js"
 import { CATEGORIES, findHelp } from "./help.js"
@@ -15,7 +13,9 @@ import { comparePay } from "./jobs.js"
 import { LANGUAGES, resolveLanguage } from "./languages.js"
 import { checkPay } from "./payrules.js"
 
-const MODEL = "claude-opus-5-5"
+const MUSE_URL = "https://api.meta.ai/v1/chat/completions"
+const model = () => process.env.MUSE_MODEL || "muse-spark-1.3"
+// Muse reasons before it answers; "Fast" keeps that short, "Careful" lets it think more.
 const EFFORT = { fast: "low", careful: "high" }
 const MAX_TOOL_ROUNDS = 8
 const CONVERSATION_TTL_MS = 6 * 60 * 60 * 1000
@@ -26,9 +26,6 @@ const PAYSTUB_TEXT_FIELDS = [
   "regular_hours", "regular_hourly_rate", "regular_pay", "overtime_hours", "overtime_hourly_rate",
   "overtime_pay", "tips", "gross_pay", "net_pay",
 ]
-
-let client = null
-const getClient = () => (client ??= new Anthropic())
 
 const SYSTEM_PROMPT = `You are the FairShift assistant, inside an app that helps immigrant and limited-English workers in the United States make sure they are paid fairly. You help workers understand pay stubs, hours, overtime, minimum wage and tipped-worker pay, and what to do next.
 
@@ -97,8 +94,7 @@ const TOOLS = [
     name: "check_pay",
     description:
       "Deterministic wage calculator using federal minimum wage and overtime rules, including the tipped-worker cash wage and tip credit. Returns, for each workweek, what should have been paid, what was actually paid (gross, before taxes) and the shortfall in dollars, plus the total underpayment. Always use this instead of doing wage math yourself.",
-    eager_input_streaming: true,
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         tipped: { type: "boolean", description: "True if the worker is a tipped worker (server, bartender, delivery and similar)." },
@@ -126,8 +122,7 @@ const TOOLS = [
     name: "set_language",
     description:
       "Switch the language of your replies (and the app's display language when the app supports it). Call this when the worker asks to use a different language, then continue your reply in that language. Pass the language name in English, such as Korean, Amharic or Portuguese.",
-    eager_input_streaming: true,
-    input_schema: {
+    parameters: {
       type: "object",
       properties: { language: { type: "string", description: "Language name in English." } },
       required: ["language"],
@@ -137,8 +132,7 @@ const TOOLS = [
     name: "find_help",
     description:
       "Find real places near the worker on Google Maps: free legal aid and employment lawyers, worker centers, and the worker's consulate. Returns names, phone numbers, addresses, ratings, whether each looks free or nonprofit, and whether it mentions the worker's language. The app shows them as cards.",
-    eager_input_streaming: true,
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         location: { type: "string", description: "City, neighborhood or ZIP code. Omit to use the worker's saved city." },
@@ -155,8 +149,7 @@ const TOOLS = [
     name: "find_jobs",
     description:
       "Look up real job posts near the worker and what similar jobs pay (median and typical range per hour), compared with the worker's hourly pay when known. Returns the best-paying posts. The app shows a pay range card and job cards with apply links.",
-    eager_input_streaming: true,
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         job_type: { type: "string", description: "Kind of work in English, such as 'line cook', 'house cleaner', 'warehouse'. Omit to use the worker's saved job." },
@@ -165,7 +158,7 @@ const TOOLS = [
       },
     },
   },
-]
+].map((spec) => ({ type: "function", function: spec }))
 
 // --- conversation store (in memory; swap for a database when backends merge) ---
 
@@ -188,7 +181,7 @@ function rateLimited(userId) {
   return limited
 }
 
-// A language name as Claude should read it: "Español" → "Spanish", "Korean" stays "Korean".
+// A language name as the model should read it: "Español" → "Spanish", "Korean" stays "Korean".
 function languageName(input) {
   const requested = typeof input === "string" ? input.trim().slice(0, 40) : ""
   if (!requested) return "English"
@@ -346,14 +339,81 @@ function contextNote({ replyLanguage, profile, mode, paystub }) {
     .join("\n")
 }
 
-const finalText = (content) => {
-  // After a mid-stream fallback, only the blocks after the last fallback block are the answer.
-  const lastFallback = content.map((block) => block.type).lastIndexOf("fallback")
-  return content
-    .slice(lastFallback + 1)
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("")
+// --- Muse streaming client ---
+
+class MuseError extends Error {
+  constructor(status, message) {
+    super(message)
+    this.status = status
+  }
+}
+
+// Streams one Chat Completions response. Calls onText with the text so far and
+// resolves with the assembled assistant message and finish reason.
+async function streamMuse({ messages, effort, signal, onText }) {
+  const response = await fetch(MUSE_URL, {
+    method: "POST",
+    signal,
+    headers: { Authorization: `Bearer ${process.env.MUSE_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: model(),
+      stream: true,
+      reasoning_effort: effort,
+      max_tokens: 16000,
+      tools: TOOLS,
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+    }),
+  })
+  if (!response.ok || !response.body) {
+    const detail = await response.text().catch(() => "")
+    throw new MuseError(response.status, `Muse request failed (${response.status}): ${detail.slice(0, 300)}`)
+  }
+
+  let content = ""
+  let refusal = ""
+  let finishReason = null
+  const toolCalls = []
+  let buffer = ""
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += value
+    const lines = buffer.split("\n")
+    buffer = lines.pop() ?? ""
+    for (const line of lines) {
+      if (!line.startsWith("data: ") || line === "data: [DONE]") continue
+      const choice = JSON.parse(line.slice(6)).choices?.[0]
+      if (!choice) continue
+      const delta = choice.delta ?? {}
+      if (delta.content) {
+        content += delta.content
+        onText(content)
+      }
+      if (delta.refusal) refusal += delta.refusal
+      for (const call of delta.tool_calls ?? []) {
+        const slot = (toolCalls[call.index ?? 0] ??= { id: "", type: "function", function: { name: "", arguments: "" } })
+        if (call.id) slot.id = call.id
+        if (call.function?.name) slot.function.name += call.function.name
+        if (call.function?.arguments) slot.function.arguments += call.function.arguments
+      }
+      if (choice.finish_reason) finishReason = choice.finish_reason
+    }
+  }
+
+  const message = { role: "assistant", content: content || null }
+  if (toolCalls.length) message.tool_calls = toolCalls.filter(Boolean)
+  return { message, finishReason, refusal }
+}
+
+function parseArguments(call) {
+  try {
+    const input = JSON.parse(call.function.arguments || "{}")
+    if (input && typeof input === "object" && !Array.isArray(input)) return input
+  } catch {
+    // Fall through to the error below.
+  }
+  throw new ToolInputError("arguments were not a JSON object")
 }
 
 // --- route ---
@@ -364,7 +424,7 @@ export const assistantRouter = Router()
 assistantRouter.use("/assistant", express.json({ limit: "100kb" }))
 
 assistantRouter.get("/assistant/status", requireUser, (_req, res) => {
-  res.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN), model: MODEL })
+  res.json({ configured: Boolean(process.env.MUSE_API_KEY), model: model() })
 })
 
 // POST /api/assistant/chat
@@ -414,87 +474,59 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
   // This turn's messages are kept apart and saved to the conversation only when
   // the turn completes, so stored history only ever grows by whole turns.
   const turn = [
-    { role: "user", content: [{ type: "text", text }] },
+    { role: "user", content: text },
     { role: "system", content: contextNote({ replyLanguage, profile, mode: body.mode, paystub }) },
   ]
 
   let committed = ""
   try {
+    if (!process.env.MUSE_API_KEY) throw new MuseError(401, "MUSE_API_KEY is not set")
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       if (controller.signal.aborted) throw new Error("aborted")
-      const stream = getClient().beta.messages.stream(
-        {
-          model: MODEL,
-          max_tokens: 64000,
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
-          thinking: { type: "adaptive" },
-          output_config: { effort },
-          cache_control: { type: "ephemeral" },
-          system: SYSTEM_PROMPT,
-          tools: TOOLS,
-          messages: [...conversation.messages, ...turn],
-        },
-        { signal: controller.signal },
-      )
-
-      let roundText = ""
-      stream.on("streamEvent", (event) => {
-        if (event.type === "content_block_start" && event.content_block.type === "fallback") {
-          roundText = "" // a backup model took over; drop the declined partial
-          emit({ type: "text", text: committed })
-        }
-      })
-      stream.on("text", (delta) => {
-        roundText += delta
-        emit({ type: "text", text: committed + roundText })
+      const { message, finishReason, refusal } = await streamMuse({
+        messages: [...conversation.messages, ...turn],
+        effort,
+        signal: controller.signal,
+        onText: (soFar) => emit({ type: "text", text: [committed, soFar].filter(Boolean).join("\n\n") }),
       })
 
-      let message
-      try {
-        message = await stream.finalMessage()
-      } catch (error) {
-        // With eager input streaming a tool input can arrive unparseable; re-issue the round once or twice.
-        if (error instanceof Anthropic.APIError || controller.signal.aborted || round >= 2) throw error
-        continue
-      }
-
-      if (message.stop_reason === "refusal") {
+      if (refusal && !message.content && !message.tool_calls) {
         throw Object.assign(new Error("refusal"), { code: "refusal" })
       }
+      if (message.content) {
+        committed = [committed, message.content].filter(Boolean).join("\n\n")
+        emit({ type: "text", text: committed })
+      }
+      turn.push(message)
 
-      const answer = finalText(message.content)
-      committed = [committed, answer].filter(Boolean).join("\n\n")
-      emit({ type: "text", text: committed })
-      turn.push({ role: "assistant", content: message.content })
-
-      const toolCalls = message.content.filter((block) => block.type === "tool_use")
-      if (message.stop_reason !== "tool_use" || toolCalls.length === 0) {
-        if (message.stop_reason === "max_tokens" && toolCalls.length) throw new Error("tool input truncated")
+      const toolCalls = message.tool_calls ?? []
+      if (toolCalls.length === 0) {
+        if (finishReason === "length" && !message.content) throw new Error("Muse ran out of tokens")
         conversation.messages.push(...turn)
         conversation.updatedAt = Date.now()
         emit({ type: "done" })
         return res.end()
       }
+      if (finishReason === "length") throw new Error("tool call truncated")
 
+      // Each tool call gets its own "tool" message, in the order they were made.
       const results = await Promise.all(
         toolCalls.map(async (call) => {
           try {
-            const output = await runTool(call.name, call.input ?? {}, { profile, replyLanguage, emit })
-            return { type: "tool_result", tool_use_id: call.id, content: JSON.stringify(output) }
+            const output = await runTool(call.function.name, parseArguments(call), { profile, replyLanguage, emit })
+            return { role: "tool", tool_call_id: call.id, content: JSON.stringify(output) }
           } catch (error) {
             const known = error instanceof ToolInputError
-            if (!known) console.error(`Tool ${call.name} failed:`, error)
+            if (!known) console.error(`Tool ${call.function.name} failed:`, error)
             return {
-              type: "tool_result",
-              tool_use_id: call.id,
-              is_error: true,
-              content: known ? `Invalid input: ${error.message}` : "The lookup failed. Tell the worker it didn't work and offer to try again.",
+              role: "tool",
+              tool_call_id: call.id,
+              content: known ? `Error: invalid input: ${error.message}` : "Error: the lookup failed. Tell the worker it didn't work and offer to try again.",
             }
           }
         }),
       )
-      turn.push({ role: "user", content: results })
+      turn.push(...results)
     }
     throw new Error("Too many tool rounds")
   } catch (error) {
@@ -502,11 +534,10 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
 
     let code = "error"
     if (error.code === "refusal") code = "refusal"
-    else if (error instanceof Anthropic.AuthenticationError) code = "not_configured"
-    else if (error instanceof Anthropic.RateLimitError) code = "rate_limited"
-    else if (error instanceof Anthropic.APIError && error.status >= 500) code = "unavailable"
-    if (code === "error" || code === "not_configured") console.error("Assistant error:", error)
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) code = "not_configured"
+    else if (error instanceof MuseError && [401, 403].includes(error.status)) code = "not_configured"
+    else if (error instanceof MuseError && error.status === 429) code = "rate_limited"
+    else if (error instanceof MuseError && error.status >= 500) code = "unavailable"
+    if (code === "error" || code === "not_configured") console.error("Assistant error:", error.message)
     emit({ type: "error", code })
     res.end()
   } finally {

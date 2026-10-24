@@ -94,8 +94,9 @@ def _prepare_for_ocr(image):
     """Grayscale, contrast-stretched copy for Tesseract, enlarged only when small.
 
     Transparent pixels are flattened onto white first; otherwise they turn black.
-    No fixed black/white cutoff is applied: photographed paper is often mid-gray,
-    and Tesseract's own adaptive thresholding handles uneven lighting better.
+    Black/white conversion sharpens small digits and decimal points, but a fixed
+    cutoff turns photographed (gray) paper solid black, so the cutoff is chosen per
+    image with Otsu's method after stretching the contrast.
     """
     from PIL import Image, ImageOps
 
@@ -121,7 +122,32 @@ def _prepare_for_ocr(image):
         grayscale = enlarged
     stretched = ImageOps.autocontrast(grayscale, cutoff=1)
     grayscale.close()
-    return stretched
+    cutoff = _otsu_threshold(stretched.histogram())
+    binary = stretched.point(lambda pixel: 255 if pixel > cutoff else 0)
+    stretched.close()
+    return binary
+
+
+def _otsu_threshold(histogram: list[int]) -> int:
+    """Gray level that best separates ink from paper (Otsu, 1979)."""
+    total = sum(histogram)
+    weighted_total = sum(level * count for level, count in enumerate(histogram))
+    background = background_sum = 0
+    best_level, best_variance = 127, -1.0
+    for level, count in enumerate(histogram):
+        background += count
+        if background == 0:
+            continue
+        foreground = total - background
+        if foreground == 0:
+            break
+        background_sum += level * count
+        mean_back = background_sum / background
+        mean_fore = (weighted_total - background_sum) / foreground
+        variance = background * foreground * (mean_back - mean_fore) ** 2
+        if variance > best_variance:
+            best_level, best_variance = level, variance
+    return best_level
 
 
 def _render_pdf_page(document_bytes: bytes, page_index: int):

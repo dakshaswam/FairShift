@@ -7,7 +7,8 @@ import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
 import { OccupationStep } from "./components/OccupationStep"
 import { PaystubPanel } from "./components/PaystubPanel"
-import { amount, isUsd, type PaystubResult } from "./paystub-api"
+import { EnteredWage } from "./components/EnteredWage"
+import { amount, dollars, isUsd, type PaystubResult } from "./paystub-api"
 
 type IconName = "home" | "clock" | "file" | "help" | "shield" | "camera" | "chevron" | "briefcase" | "map" | "volume" | "check"
 
@@ -325,7 +326,7 @@ export default function App() {
                       <p className="mt-2 text-sm text-slate-700">
                         {profile.occupation}
                         {profile.location ? ` · ${profile.location}` : ""}
-                        {profile.hourlyWage ? ` · $${profile.hourlyWage}/hr` : ""}
+                        {profile.hourlyWage ? ` · ${dollars(profile.hourlyWage)}/hr` : ""}
                       </p>
                     )}
                   </div>
@@ -454,6 +455,12 @@ export default function App() {
                   <p className="mt-2 text-sm leading-relaxed text-amber-950/70">
                     {currentStub ? `${currentStub.employer_name ?? "Employer not provided"}. Overtime pay listed: ${amount(currentStub.overtime_pay, currentStub.currency)}.` : "Upload a document to see its actual hours, rates, deductions and pay."}
                   </p>
+                  <EnteredWage
+                    hourlyWage={profile?.hourlyWage}
+                    stub={currentStub}
+                    onEdit={() => setAuthStep("editOccupation")}
+                    className="mt-4"
+                  />
                   <button
                     onClick={() => setDrawer("stub")}
                     className="mt-5 flex items-center gap-1 text-sm font-bold text-amber-950"
@@ -631,6 +638,7 @@ export default function App() {
                     <div><dt className="text-sm text-slate-500">Regular hours / hourly rate</dt><dd className="mt-1 font-bold">{currentStub.regular_hours ?? "Not provided"} / {amount(currentStub.regular_hourly_rate, currentStub.currency)}</dd></div>
                     <div><dt className="text-sm text-slate-500">Overtime hours / pay listed</dt><dd className="mt-1 font-bold">{currentStub.overtime_hours ?? "Not provided"} / {amount(currentStub.overtime_pay, currentStub.currency)}</dd></div>
                   </dl>
+                  <EnteredWage hourlyWage={profile?.hourlyWage} stub={currentStub} onEdit={() => setAuthStep("editOccupation")} className="mt-5" />
                   <p className="mt-5 text-sm text-slate-600">Extracted values require review. No unpaid-wage amount or legal conclusion is calculated.</p>
                 </> : <p className="mt-3 text-sm text-slate-600">Choose a document and approve its redacted text. Older demo paychecks are not evidence for your upload.</p>}
                 <button onClick={() => setDrawer("stub")} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? "Review this paystub" : "Upload a paystub"}</button>
@@ -687,7 +695,7 @@ export default function App() {
                   <h2 className="mt-8 text-xl font-bold">Find a better job</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     {profile?.hourlyWage
-                      ? `See nearby ${profile.occupation} jobs paying more than your $${profile.hourlyWage}/hour.`
+                      ? `See nearby ${profile.occupation} jobs paying more than your ${dollars(profile.hourlyWage)}/hour.`
                       : currentStub?.regular_hourly_rate && isUsd(currentStub.currency)
                         ? `Compare nearby advertised pay with the current document's ${amount(currentStub.regular_hourly_rate, currentStub.currency)} hourly rate.`
                         : `See what ${profile?.occupation ?? "similar"} jobs pay near you.`}
@@ -740,6 +748,24 @@ export default function App() {
         ))}
       </nav>
 
+      {/* Floating shortcut to the assistant, on every screen, above the mobile tab bar. */}
+      {!drawer && (
+        <button
+          onClick={() => openAssistant("ask")}
+          aria-label="Ask the FairShift assistant"
+          title="Ask the FairShift assistant"
+          className="group fixed bottom-24 right-5 z-20 flex items-center gap-2 rounded-full bg-emerald-700 p-4 text-white shadow-lg shadow-emerald-900/25 transition hover:bg-emerald-800 lg:bottom-8 lg:right-8"
+        >
+          <svg aria-hidden="true" className="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 18.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 3.5z" />
+            <path d="M8.5 9.5h7M8.5 12.5h4.5" />
+          </svg>
+          <span className="hidden pr-1 text-sm font-bold group-hover:inline">
+            Ask FairShift
+          </span>
+        </button>
+      )}
+
       {drawer && (
         <div
           className="fixed inset-0 z-30 flex justify-end bg-slate-950/40"
@@ -782,6 +808,8 @@ export default function App() {
                 result={paystubResult}
                 onResult={setPaystubResult}
                 onAskAssistant={() => openAssistant("stub")}
+                hourlyWage={profile?.hourlyWage}
+                onEditWage={() => setAuthStep("editOccupation")}
               />
             )}
 

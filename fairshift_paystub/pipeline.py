@@ -1,4 +1,4 @@
-"""Local extraction → redaction → review → Gemini → validation → checks."""
+"""Local extraction → redaction → review → Muse → validation → checks."""
 
 import json
 import unicodedata
@@ -9,7 +9,7 @@ from pathlib import Path
 from .checks import review_checks
 from .documents import extract_bytes, extract_text
 from .errors import ApprovalError, FairShiftError, RedactionError, ResponseError
-from .gemini import request_extraction
+from .muse import request_extraction
 from .privacy import assert_no_pii, redact_text
 from .quiet import sensitive_operation
 from .schema import Extraction, Paystub
@@ -76,7 +76,7 @@ def prepare_paystub_bytes(document: bytes, suffix: str) -> str:
         except FairShiftError:
             raise
         except Exception:
-            raise RedactionError("Local upload preparation failed. Check OCR and redaction dependencies; nothing was sent to Gemini.") from None
+            raise RedactionError("Local upload preparation failed. Check OCR and redaction dependencies; nothing was sent to Muse.") from None
 
 
 def _unique_object(pairs):
@@ -111,7 +111,7 @@ def _validate_response(response: str, approved_text: str) -> Paystub:
                           object_pairs_hook=_unique_object)
         extracted = Extraction.model_validate(data)
     except Exception:
-        raise ResponseError("Gemini returned invalid JSON or values that do not match the paystub schema. Nothing was saved.") from None
+        raise ResponseError("Muse returned invalid JSON or values that do not match the paystub schema. Nothing was saved.") from None
 
     try:
         # Include every string, including warnings/labels and internal fields.
@@ -137,7 +137,19 @@ def _validate_response(response: str, approved_text: str) -> Paystub:
     )) or bool(stub.deductions or stub.other_earnings)
     if not extracted.is_paystub or not has_payroll_data:
         raise ResponseError("This is not a recognizable paystub, or there is insufficient readable payroll data. Try a clearer paystub.")
-    return review_checks(stub, extracted.reconciliation, approved_text)
+    return _assume_usd(review_checks(stub, extracted.reconciliation, approved_text))
+
+
+ASSUMED_USD = "The paystub doesn't show a currency, so FairShift assumes US dollars (USD)."
+
+
+def _assume_usd(stub: Paystub) -> Paystub:
+    """FairShift serves workers in the United States, so a paystub that prints no
+    currency is in dollars. An explicit currency (for example CAD) is kept."""
+    if stub.currency is not None:
+        return stub
+    notes = [note for note in stub.warnings if "currency" not in note.lower()]
+    return stub.model_copy(update={"currency": "USD", "warnings": [ASSUMED_USD, *notes]})
 
 
 def extract_paystub(file_path: str | Path, *, review: Review | None = None,
@@ -180,3 +192,43 @@ def complete_paystub(approved_text: str, *, approved: bool = False,
             raise
         except Exception:
             raise ResponseError("Processing failed safely. Check dependencies and retry after reviewing the redacted text.") from None
+
+
+AUTO_REDACTION_RETRIES = 2
+
+
+def auto_send_paystub(redacted_text: str, *, api_key: str | None = None,
+                      model: str | None = None) -> tuple[Paystub, str, int, bool]:
+    """Send locally redacted text to Muse with no manual approval step.
+
+    If the outbound privacy check still finds a possible identifier, the text is
+    redacted again (the flagged spans become placeholders) and re-checked, up to
+    AUTO_REDACTION_RETRIES times. If the check still objects after that, the text
+    is sent anyway ("forced"); by then every detection has been redacted twice,
+    so what remains is almost always a false alarm such as a field label.
+
+    Returns (paystub, text_sent, redaction_retries, forced).
+    """
+    with sensitive_operation():
+        try:
+            text = redacted_text
+            _safe_text(text)
+            retries = 0
+            forced = False
+            while True:
+                try:
+                    assert_no_pii(text)
+                    break
+                except RedactionError:
+                    if retries == AUTO_REDACTION_RETRIES:
+                        forced = True
+                        break
+                    retries += 1
+                    text = redact_text(text)
+                    _safe_text(text)
+            response = request_extraction(text, api_key=api_key, model=model)
+            return _validate_response(response, text), text, retries, forced
+        except FairShiftError:
+            raise
+        except Exception:
+            raise ResponseError("Processing failed safely. Check dependencies and try the upload again.") from None

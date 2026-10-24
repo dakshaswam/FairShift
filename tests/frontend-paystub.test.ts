@@ -1,4 +1,4 @@
-// All API responses below are mocked. No network request or Gemini call is made.
+// All API responses below are mocked. No network request or Muse call is made.
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
@@ -37,7 +37,7 @@ test("missing overtime and deductions stay unknown", () => {
   assert.equal(amount(null, "USD"), "Not provided")
 })
 
-test("prepare sends the current file bytes to local OCR without filename or a Gemini call", async () => {
+test("prepare sends the current file bytes to local OCR without filename or a Muse call", async () => {
   const prior = globalThis.fetch
   const file = new File(["fictional image bytes"], "fake-sensitive-name.png", { type: "image/png" })
   const calls: { path: string; init: RequestInit }[] = []
@@ -62,7 +62,7 @@ test("extract sends the exact edited approved text and binds the upload ID", asy
   globalThis.fetch = (async (path, init) => {
     assert.equal(String(path), "/api/paystubs/extract")
     request = JSON.parse(String(init?.body))
-    return new Response(JSON.stringify({ upload_id: prepared.upload_id, paystub: changed, assistant_message: "Validated fictional result", trace: [], source: "gemini_live" }), { status: 200 })
+    return new Response(JSON.stringify({ upload_id: prepared.upload_id, paystub: changed, assistant_message: "Validated fictional result", trace: [], source: "muse_live" }), { status: 200 })
   }) as typeof fetch
   try {
     const result = await extractPaystub(prepared, edited, new AbortController().signal)
@@ -74,7 +74,7 @@ test("extract sends the exact edited approved text and binds the upload ID", asy
 test("a stale upload result or unknown source is rejected", async () => {
   const prior = globalThis.fetch
   try {
-    for (const overrides of [{ upload_id: "older-upload", source: "gemini_live" }, { upload_id: prepared.upload_id, source: "unknown" }]) {
+    for (const overrides of [{ upload_id: "older-upload", source: "muse_live" }, { upload_id: prepared.upload_id, source: "unknown" }]) {
       globalThis.fetch = (async () => new Response(JSON.stringify({ paystub: original, assistant_message: "stale", trace: [], ...overrides }), { status: 200 })) as typeof fetch
       await assert.rejects(() => extractPaystub(prepared, prepared.redacted_text, new AbortController().signal), /did not match/)
     }
@@ -86,8 +86,8 @@ test("injected mock extraction is explicitly labeled instead of presented as liv
   globalThis.fetch = (async () => new Response(JSON.stringify({ upload_id: prepared.upload_id, paystub: changed, assistant_message: "Mocked fictional result", trace: [], source: "mocked" }), { status: 200 })) as typeof fetch
   try {
     const result = await extractPaystub(prepared, prepared.redacted_text, new AbortController().signal)
-    assert.match(extractionSourceLabel(result.source), /Mocked extraction.*not a live Gemini response/)
-    assert.match(extractionSourceLabel("gemini_live"), /Real Gemini request/)
+    assert.match(extractionSourceLabel(result.source), /Mocked extraction.*not a live Muse response/)
+    assert.match(extractionSourceLabel("muse_live"), /Real Muse request/)
   } finally { globalThis.fetch = prior }
 })
 

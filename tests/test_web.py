@@ -1,4 +1,4 @@
-"""Local HTTP/upload integration. All Gemini responses in these tests are MOCKED."""
+"""Local HTTP/upload integration. All model (Muse) responses in these tests are MOCKED."""
 
 import http.client
 import json
@@ -178,15 +178,30 @@ def test_approval_ticket_is_single_use_after_success(envelope):
 
 
 def test_approval_ticket_can_retry_after_a_failed_extraction(envelope):
-    from fairshift_paystub.errors import GeminiError
+    from fairshift_paystub.errors import ModelError
     from fairshift_paystub.schema import Paystub
 
     stub = Paystub.model_validate(envelope["paystub"])
-    complete = Mock(side_effect=[GeminiError("busy"), stub])
+    complete = Mock(side_effect=[ModelError("busy"), stub])
     app = _app_with(complete)
     preview = app.prepare_document(b"%PDF", ".pdf", "s" * 32)
     request = {"upload_id": preview["upload_id"], "approval_token": preview["approval_token"],
                "approved_text": "Gross Pay: 10.00 (edited)", "approved": True}
-    with pytest.raises(GeminiError):
+    with pytest.raises(ModelError):
         app.extract_document(request, "s" * 32)
     assert app.extract_document(request, "s" * 32)["upload_id"] == preview["upload_id"]
+
+
+def test_process_uploads_redacts_and_sends_without_approval(envelope):
+    from fairshift_paystub.schema import Paystub
+
+    stub = Paystub.model_validate(envelope["paystub"])
+    auto_send = Mock(return_value=(stub, "Gross Pay: 10.00", 1, False))
+    app = PaystubApplication(prepare=lambda document, suffix: "Gross Pay: 10.00",
+                             auto_send=auto_send, source="mocked")
+    result = app.process_document(b"%PDF", ".pdf")
+    auto_send.assert_called_once_with("Gross Pay: 10.00")
+    assert result["paystub"] == stub.model_dump(mode="json")
+    assert result["sent_text"] == "Gross Pay: 10.00"
+    assert result["redaction_retries"] == 1 and result["forced"] is False
+    assert {"stage": "automatic_send", "status": "passed", "mode": "re-redacted"} in result["trace"]

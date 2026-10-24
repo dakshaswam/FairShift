@@ -1,6 +1,6 @@
 """Local parser/rendering checks; every Tesseract subprocess is MOCKED.
 
-These checks never call Gemini, and do not claim live OCR accuracy.
+These checks never call Muse, and do not claim live OCR accuracy.
 All generated documents contain fictional text only.
 """
 

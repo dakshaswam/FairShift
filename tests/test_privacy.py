@@ -1,4 +1,4 @@
-"""Fictional identifiers only; regex tests stub NER and never call Gemini."""
+"""Fictional identifiers only; regex tests stub NER and never call Muse."""
 
 import logging
 import json
@@ -189,3 +189,30 @@ def test_real_local_ner_on_fictional_pdf_and_output_strings():
                 yield from strings(child)
 
     privacy.assert_no_pii("\n\n".join(strings(expected)))
+
+
+def test_field_labels_next_to_placeholders_are_not_names():
+    """Real NER: 'Email' after a redacted name used to be flagged as a person."""
+    pytest.importorskip("spacy")
+    import spacy
+    if not spacy.util.is_package("en_core_web_lg"):
+        pytest.skip("local NLP model not installed")
+    from fairshift_paystub.privacy import assert_no_pii
+
+    assert_no_pii(
+        "Employee Name: [NAME_1] Email: [EMAIL_1]\n"
+        "Employee ID: [EMPLOYEE_ID_1] Pay Date: 2026-10-16\n"
+        "SSN: [SSN_1] Currency: USD\nBank: Example Test Bank\n"
+    )
+
+
+def test_real_names_beside_labels_are_still_redacted():
+    pytest.importorskip("spacy")
+    import spacy
+    if not spacy.util.is_package("en_core_web_lg"):
+        pytest.skip("local NLP model not installed")
+    from fairshift_paystub.privacy import redact_text
+
+    redacted = redact_text("Employee Name: Jordan Avery Example Email: none listed\nPay Date: 2026-10-16")
+    assert "Jordan" not in redacted and "Example" not in redacted
+    assert "Email" in redacted

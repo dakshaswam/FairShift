@@ -17,8 +17,8 @@ class ApprovalError(FairShiftError):
     pass
 
 
-class GeminiError(FairShiftError):
-    pass
+class ModelError(FairShiftError):
+    """The extraction model (Muse) could not return a result."""
 
 
 class ResponseError(FairShiftError):

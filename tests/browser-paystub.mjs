@@ -1,5 +1,5 @@
 // Synthetic browser regression tests. DEFAULT MODE MOCKS ALL PAYSTUB HTTP CALLS.
-// --live uses actual OCR/redaction/Gemini and waits for approval on stdin first.
+// --live uses actual OCR/redaction/Muse and waits for approval on stdin first.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -52,17 +52,17 @@ try {
     await editor(page).waitFor({ timeout: 60000 })
     const preview = await editor(page).inputValue()
     console.log('EXACT SYNTHETIC REDACTED TEXT FOR APPROVAL\n' + preview + '\nEND PREVIEW')
-    console.log('REAL OCR/REDACTION completed; Gemini has NOT been called. Type APPROVED only after user consent.')
+    console.log('REAL OCR/REDACTION completed; Muse has NOT been called. Type APPROVED only after user consent.')
     const terminal = readline.createInterface({ input: process.stdin, output: process.stdout })
     const answer = await terminal.question('Approval: ')
     terminal.close()
-    assert.equal(answer.trim(), 'APPROVED', 'Cancelled before any Gemini call.')
+    assert.equal(answer.trim(), 'APPROVED', 'Cancelled before any Muse call.')
     const pending = page.waitForResponse(response => response.url().endsWith('/api/paystubs/extract'), { timeout: 90000 })
     await approve(page)
     const response = await pending
     const result = await response.json()
     assert(response.ok(), `Real extraction failed at ${result.stage || 'unknown'}: ${result.error || 'the service returned no safe error detail.'}`)
-    assert.equal(result.source, 'gemini_live')
+    assert.equal(result.source, 'muse_live')
     for (const field of ['employer_name', 'regular_hours', 'regular_hourly_rate', 'regular_pay', 'overtime_hours', 'overtime_hourly_rate', 'overtime_pay', 'gross_pay', 'net_pay']) {
       if (field === 'employer_name') assert.equal(result.paystub[field], current[field], field)
       else assert.equal(Number(result.paystub[field]), Number(current[field]), field)
@@ -75,7 +75,7 @@ try {
     assert(screen.includes('USD 90.00') && screen.includes('USD 587.21'))
     assert(!screen.includes('Sunbright') && !screen.includes('86.40'))
     assert(screen.includes('cannot determine unpaid wages'))
-    console.log('PASS LIVE: current synthetic PNG → actual Tesseract → actual redaction → real Gemini → validation/checks → current chatbot.')
+    console.log('PASS LIVE: current synthetic PNG → actual Tesseract → actual redaction → real Muse → validation/checks → current chatbot.')
     console.log('LIVE values matched fixture: 40 regular hours, rate15, regular600, overtime4/rate22.5/pay90, gross690, deductions102.79, net587.21.')
     console.log('LIVE trace: ' + result.trace.map(item => `${item.stage}:${item.status}:${item.mode || ''}`).join(', '))
     await page.close()
@@ -106,13 +106,13 @@ try {
     await openPanel(page)
     await upload(page, originalFile)
     await editor(page).waitFor()
-    assert.equal(state.extractCalls, 0, 'Preparing never auto-approves a Gemini request.')
+    assert.equal(state.extractCalls, 0, 'Preparing never auto-approves a Muse request.')
     await editor(page).fill((await editor(page).inputValue()) + '\nUser reviewed this exact text.')
     await approve(page)
     await page.getByText(`Current upload: ${original.employer_name}`, { exact: true }).waitFor()
     const mockScreen = await page.locator('body').innerText()
     assert(mockScreen.includes(`MOCKED: ${original.employer_name}`))
-    assert(mockScreen.includes('Mocked extraction · test data, not a live Gemini response'))
+    assert(mockScreen.includes('Mocked extraction · test data, not a live Muse response'))
     console.log('PASS MOCK: exact edited approval, current-file request and truthful mock label.')
 
     await upload(page, currentFile)

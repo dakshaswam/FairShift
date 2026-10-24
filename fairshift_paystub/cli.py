@@ -19,7 +19,7 @@ def terminal_review(text: str) -> str | None:
     if not sys.stdin.isatty() or not sys.stderr.isatty():
         raise ApprovalError("Review requires an interactive terminal. Open a terminal and run the command there.")
     while True:
-        print("\n--- Exact redacted document text proposed for Gemini ---", file=sys.stderr)
+        print("\n--- Exact redacted document text proposed for Muse ---", file=sys.stderr)
         print(text, file=sys.stderr)
         print("--- End of proposed document text ---", file=sys.stderr)
         print("Check every line for personal information. Payroll amounts still go to Google after approval.", file=sys.stderr)
@@ -89,11 +89,11 @@ def _save_result(path: Path, json_text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = _PrivateArgumentParser(description="FairShift: locally redact a paystub, review it, then extract JSON with Gemini.")
+    parser = _PrivateArgumentParser(description="FairShift: locally redact a paystub, review it, then extract JSON with Muse.")
     parser.add_argument("file", help="Local PDF, PNG, JPEG, TIFF, BMP or WebP paystub")
     parser.add_argument("--output", help="Explicitly save final redacted JSON to a NEW file")
-    parser.add_argument("--model", help="Override GEMINI_MODEL")
-    parser.add_argument("--preview-only", action="store_true", help="Show local redaction only; no Gemini call or JSON file")
+    parser.add_argument("--model", help="Override MUSE_MODEL (default muse-spark-1.3)")
+    parser.add_argument("--preview-only", action="store_true", help="Show local redaction only; no Muse call or JSON file")
     args = parser.parse_args(argv)
     try:
         if args.preview_only and args.output:
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         output = _output_target(args.output, args.file)
         if args.preview_only:
             print(prepare_paystub(args.file))
-            print("Local preview only; nothing was sent to Gemini or saved.", file=sys.stderr)
+            print("Local preview only; nothing was sent to Muse or saved.", file=sys.stderr)
             return 0
         result = extract_paystub(args.file, review=terminal_review, model=args.model)
         json_text = result.model_dump_json(indent=2)

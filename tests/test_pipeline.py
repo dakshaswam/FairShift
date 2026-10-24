@@ -1,4 +1,4 @@
-"""Actual local PDF/regex pipeline with mocked NER and mocked Gemini."""
+"""Actual local PDF/regex pipeline with mocked NER and mocked Muse."""
 
 import json
 from decimal import Decimal
@@ -20,7 +20,7 @@ FAKE_IDENTIFIERS = (
 
 
 def test_outbound_exact_approved_text_has_placeholders_no_known_fake_identifiers(fake_ner, envelope, expected, monkeypatch, tmp_path):
-    # Local PDF parsing and supplemental regex are real. Presidio NER and Gemini
+    # Local PDF parsing and supplemental regex are real. Presidio NER and Muse
     # are mocked here; tests/test_privacy.py covers actual local NER separately.
     request = Mock(return_value=json.dumps(envelope))
     monkeypatch.setattr(pipeline, "request_extraction", request)
@@ -218,8 +218,8 @@ def test_output_display_controls_blocked(fake_ner, envelope, monkeypatch, contro
         complete_paystub("Gross Pay: 1615.00", approved=True)
 
 
-def test_real_local_ner_pipeline_with_mocked_gemini(envelope, expected, monkeypatch):
-    """Actual PDF/Presidio/spaCy; the Gemini response is still entirely mocked."""
+def test_real_local_ner_pipeline_with_mocked_muse(envelope, expected, monkeypatch):
+    """Actual PDF/Presidio/spaCy; the Muse response is still entirely mocked."""
     import importlib.util
     if importlib.util.find_spec("en_core_web_lg") is None:
         pytest.skip("Install en_core_web_lg for real local NER integration; no API call is used.")
@@ -232,3 +232,77 @@ def test_real_local_ner_pipeline_with_mocked_gemini(envelope, expected, monkeypa
     for fake_identifier in FAKE_IDENTIFIERS:
         assert fake_identifier not in sent
     assert stub.model_dump(mode="json") == expected
+
+
+def test_missing_currency_is_assumed_usd_with_a_note(fake_ner, envelope, monkeypatch):
+    envelope["paystub"]["currency"] = None
+    envelope["paystub"]["warnings"] = ["No explicit currency symbol or code was detected in the document text."]
+    monkeypatch.setattr(pipeline, "request_extraction", Mock(return_value=json.dumps(envelope)))
+    stub = complete_paystub("Gross Pay: 1615.00", approved=True)
+    assert stub.currency == "USD"
+    assert stub.warnings[0] == pipeline.ASSUMED_USD
+    assert not any("No explicit currency" in note for note in stub.warnings)
+
+
+def test_explicit_currency_is_kept(fake_ner, envelope, monkeypatch):
+    envelope["paystub"]["currency"] = "CAD"
+    monkeypatch.setattr(pipeline, "request_extraction", Mock(return_value=json.dumps(envelope)))
+    stub = complete_paystub("Gross Pay: 1615.00 CAD", approved=True)
+    assert stub.currency == "CAD"
+    assert pipeline.ASSUMED_USD not in stub.warnings
+
+
+def _flagging(times):
+    """assert_no_pii stand-in that objects `times` times, then passes."""
+    calls = []
+
+    def check(text):
+        calls.append(text)
+        if len(calls) <= times:
+            raise RedactionError("flagged")
+
+    return check, calls
+
+
+def test_auto_send_clean_text_goes_straight_to_muse(envelope, monkeypatch):
+    check, calls = _flagging(0)
+    request = Mock(return_value=json.dumps(envelope))
+    monkeypatch.setattr(pipeline, "assert_no_pii", check)
+    monkeypatch.setattr(pipeline, "request_extraction", request)
+    monkeypatch.setattr(pipeline, "review_checks", lambda stub, reconciliation, text: stub)
+    stub, sent, retries, forced = pipeline.auto_send_paystub("Gross Pay: 1615.00")
+    assert (sent, retries, forced) == ("Gross Pay: 1615.00", 0, False)
+    assert request.call_args.args[0] == "Gross Pay: 1615.00"
+
+
+def test_auto_send_re_redacts_then_sends(envelope, monkeypatch):
+    check, calls = _flagging(1)
+    request = Mock(return_value=json.dumps(envelope))
+    monkeypatch.setattr(pipeline, "assert_no_pii", check)
+    monkeypatch.setattr(pipeline, "redact_text", lambda text: text.replace("Jordan", "[NAME_1]"))
+    monkeypatch.setattr(pipeline, "request_extraction", request)
+    monkeypatch.setattr(pipeline, "review_checks", lambda stub, reconciliation, text: stub)
+    _, sent, retries, forced = pipeline.auto_send_paystub("Jordan Gross Pay: 1615.00")
+    assert (sent, retries, forced) == ("[NAME_1] Gross Pay: 1615.00", 1, False)
+    assert request.call_args.args[0] == sent
+
+
+def test_auto_send_forces_after_two_retries(envelope, monkeypatch):
+    calls = []
+
+    def check(text):  # objects to the outgoing text every time; the model's result is fine
+        if "Email" in text:
+            calls.append(text)
+            raise RedactionError("flagged")
+
+    request = Mock(return_value=json.dumps(envelope))
+    redact = Mock(side_effect=lambda text: text)
+    monkeypatch.setattr(pipeline, "assert_no_pii", check)
+    monkeypatch.setattr(pipeline, "redact_text", redact)
+    monkeypatch.setattr(pipeline, "request_extraction", request)
+    monkeypatch.setattr(pipeline, "review_checks", lambda stub, reconciliation, text: stub)
+    _, _, retries, forced = pipeline.auto_send_paystub("Email: [EMAIL_1] Gross Pay: 1615.00")
+    assert (retries, forced) == (pipeline.AUTO_REDACTION_RETRIES, True)
+    assert redact.call_count == pipeline.AUTO_REDACTION_RETRIES
+    assert len(calls) == pipeline.AUTO_REDACTION_RETRIES + 1
+    request.assert_called_once()
