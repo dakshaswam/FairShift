@@ -7,7 +7,7 @@ import {
   type HelpCategory,
   type PayCheckResult,
 } from "../api"
-import type { Paystub } from "../paystub-api"
+import { processPaystub, type PaystubResult, type ProcessedPaystub } from "../paystub-api"
 import {
   assistantStrings,
   type AssistantMode,
@@ -15,7 +15,9 @@ import {
 } from "./assistantStrings"
 import { JobCard, PayRange } from "./JobPay"
 import { PlaceCard, languageNames } from "./LocalHelp"
-import { useT } from "../i18n"
+import { languageName, useT } from "../i18n"
+import { PaystubCard } from "./PaystubCard"
+import { WageClaimCard } from "./WageClaimCard"
 
 type Item =
   | { id: string; role: "user"; text: string }
@@ -25,6 +27,8 @@ type Item =
       text: string
       cards: AssistantCard[]
       status: "streaming" | "done" | "error"
+      // Shown while there is no text yet, e.g. while a pay stub is being read.
+      note?: string
       error?: string
       retry?: string
     }
@@ -124,24 +128,33 @@ type SpeechRecognitionLike = {
   onend: () => void
 }
 
-// Pay stubs reach the assistant only as the fields the worker approved in the
-// private upload flow (PaystubPanel); the original photo or PDF is never sent here.
+// The one FairShift chat. Pay stubs are uploaded from here: the file is read and
+// redacted by the local paystub service, and the assistant only ever sees the
+// extracted fields, never the photo or PDF.
 export function Assistant({
   language,
   initialMode = "ask",
   initialQuestion,
-  paystub,
+  startUpload = false,
+  paystubResult,
+  onPaystubResult,
+  hourlyWage,
+  onEditWage,
   onLanguageChange,
-  onUploadPaystub,
 }: {
   language: string
   initialMode?: AssistantMode
-  // Sent as soon as the chat opens, e.g. a question typed in the pay stub panel.
+  // Sent as soon as the chat opens.
   initialQuestion?: string
-  paystub: Paystub | null
+  // Open the file picker as soon as the chat opens ("Check a pay stub").
+  startUpload?: boolean
+  paystubResult: PaystubResult | null
+  onPaystubResult: (result: PaystubResult | null) => void
+  hourlyWage?: number | null
+  onEditWage?: () => void
   onLanguageChange: (language: string) => void
-  onUploadPaystub: () => void
 }) {
+  const paystub = paystubResult?.paystub ?? null
   const t = assistantStrings(useT())
   const [items, setItems] = useState<Item[]>(saved.items)
   const [mode, setMode] = useState<AssistantMode>(initialMode)
@@ -159,6 +172,7 @@ export function Assistant({
   const recognizerRef = useRef<SpeechRecognitionLike | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const lastLanguage = useRef(language)
 
   useEffect(() => {
@@ -286,7 +300,10 @@ export function Assistant({
       error: t.errGeneric,
     })[event.code]
 
-  const send = async (raw: string) => {
+  const send = async (
+    raw: string,
+    options: { mode?: AssistantMode; paystub?: ProcessedPaystub["paystub"] } = {},
+  ) => {
     if (busy) return
     const text = raw.trim()
     if (!text) return
@@ -328,8 +345,8 @@ export function Assistant({
         {
           conversationId: saved.conversationId,
           message: text,
-          paystub: paystub ?? undefined,
-          mode,
+          paystub: (options.paystub ?? paystub) ?? undefined,
+          mode: options.mode ?? mode,
           replyLanguage: replyOverride ?? language,
           speed,
         },
@@ -379,6 +396,71 @@ export function Assistant({
     }
   }
 
+  const pickFile = () => {
+    if (!busy) fileRef.current?.click()
+  }
+
+  // Upload → local OCR and redaction → Muse extraction, then the assistant explains it.
+  const uploadPaystub = async (file: File | undefined) => {
+    if (!file || busy) return
+    stopSpeaking()
+    const userId = uid()
+    const botId = uid()
+    setMode("stub")
+    setItems((current) => [
+      ...current,
+      { id: userId, role: "user", text: t.uploadedStub },
+      { id: botId, role: "bot", text: "", cards: [], status: "streaming", note: t.readingStub },
+    ])
+    const controller = new AbortController()
+    controllerRef.current = controller
+    setBusy(true)
+    let result: ProcessedPaystub | null = null
+    try {
+      result = await processPaystub(file, controller.signal, languageName(language))
+      const done = result
+      setItems((current) =>
+        current.map((item) =>
+          item.id === botId && item.role === "bot"
+            ? { ...item, status: "done", note: undefined, cards: [{ kind: "paystub", data: done }] }
+            : item,
+        ),
+      )
+      onPaystubResult(done)
+    } catch {
+      setItems((current) =>
+        current.map((item) =>
+          item.id === botId && item.role === "bot"
+            ? { ...item, status: "error", note: undefined, error: controller.signal.aborted ? t.errGeneric : t.stubFailed }
+            : item,
+        ),
+      )
+    } finally {
+      controllerRef.current = null
+      setBusy(false)
+    }
+    // Ask for the explanation once React has shown the pay stub card.
+    if (result) {
+      const stub = result.paystub
+      setTimeout(() => send(t.modeStarters.stub, { mode: "stub", paystub: stub }), 0)
+    }
+  }
+
+  // Tapping a mode sends its question right away; "Pay stub" asks for the file first.
+  const chooseMode = (next: AssistantMode) => {
+    if (busy) return
+    setMode(next)
+    if (next === "stub" && !paystub) pickFile()
+    else send(t.modeStarters[next], { mode: next })
+  }
+
+  useEffect(() => {
+    if (!startUpload) return
+    const timer = setTimeout(() => fileRef.current?.click(), 0)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!initialQuestion) return
     // A timer (cleared on unmount) so React's dev-mode double mount sends it once.
@@ -425,7 +507,8 @@ export function Assistant({
             <button
               key={m}
               aria-pressed={mode === m}
-              onClick={() => setMode(m)}
+              onClick={() => chooseMode(m)}
+              disabled={busy}
               className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-bold transition ${
                 mode === m
                   ? "border-slate-900 bg-slate-900 text-white"
@@ -437,6 +520,15 @@ export function Assistant({
           ))}
         </div>
         <p className="mt-2 text-sm text-slate-500">{t.hints[mode]}</p>
+        {!paystub && mode === "stub" && (
+          <button
+            onClick={pickFile}
+            disabled={busy}
+            className="mt-2 w-full rounded-xl border-2 border-dashed border-emerald-600 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900 disabled:opacity-50"
+          >
+            📄 {t.uploadStub}
+          </button>
+        )}
         {paystub && (
           <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
             {t.usingStub}: {paystub.employer_name ?? "—"}
@@ -460,7 +552,7 @@ export function Assistant({
               {t.starters.map((starter, i) => (
                 <button
                   key={starter}
-                  onClick={() => (i === 0 && !paystub ? onUploadPaystub() : send(starter))}
+                  onClick={() => (i === 0 && !paystub ? pickFile() : send(starter, i === 0 ? { mode: "stub" } : {}))}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-left text-sm font-semibold hover:border-emerald-600"
                 >
                   {starter}
@@ -480,7 +572,7 @@ export function Assistant({
             ) : (
               <div key={item.id} className="w-full">
                 {item.cards.map((card, i) => (
-                  <ChatCard key={i} card={card} t={t} language={language} />
+                  <ChatCard key={i} card={card} t={t} language={language} hourlyWage={hourlyWage} onEditWage={onEditWage} />
                 ))}
                 {item.status === "error" ? (
                   <div className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-900">
@@ -500,9 +592,9 @@ export function Assistant({
                     className="max-w-[68ch] leading-relaxed text-slate-800 [overflow-wrap:anywhere]"
                     dangerouslySetInnerHTML={{ __html: markdown(item.text) }}
                   />
-                ) : (
+                ) : item.status === "done" ? null : (
                   <p className="flex items-center gap-2 text-slate-500">
-                    {t.thinking}
+                    {item.note ?? t.thinking}
                     <span className="size-2 animate-ping rounded-full bg-emerald-600" />
                   </p>
                 )}
@@ -538,9 +630,21 @@ export function Assistant({
           }}
           className="flex items-end gap-2"
         >
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ""
+              void uploadPaystub(file)
+            }}
+          />
           <button
             type="button"
-            onClick={onUploadPaystub}
+            onClick={pickFile}
+            disabled={busy}
             aria-label={t.photo}
             title={t.photo}
             className="grid size-11 shrink-0 place-items-center rounded-full border border-slate-200 hover:border-slate-400"
@@ -635,12 +739,18 @@ function ChatCard({
   card,
   t,
   language,
+  hourlyWage,
+  onEditWage,
 }: {
   card: AssistantCard
   t: AssistantStrings
   language: string
+  hourlyWage?: number | null
+  onEditWage?: () => void
 }) {
   if (card.kind === "pay_check") return <PayCheckCard result={card.data} t={t} />
+  if (card.kind === "paystub") return <PaystubCard result={card.data} hourlyWage={hourlyWage} onEditWage={onEditWage} />
+  if (card.kind === "wage_claim") return <WageClaimCard claim={card.data} />
 
   if (card.kind === "help") {
     const groups = Object.entries(card.data.results) as [HelpCategory, NonNullable<(typeof card.data.results)[HelpCategory]>][]

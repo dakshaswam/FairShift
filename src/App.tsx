@@ -7,7 +7,6 @@ import { LanguagePicker } from "./components/LanguagePicker"
 import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
 import { OccupationStep } from "./components/OccupationStep"
-import { PaystubPanel } from "./components/PaystubPanel"
 import { EnteredWage } from "./components/EnteredWage"
 import { I18nProvider, LANGUAGE_OPTIONS, languageDir, speechLang, tk, translator } from "./i18n"
 import { amount, dollars, isUsd, type PaystubResult } from "./paystub-api"
@@ -115,9 +114,10 @@ function AppInner({
   const [active, setActive] = useState("home")
   const [clockedIn, setClockedIn] = useState(false)
   const [drawer, setDrawer] =
-    useState<"stub" | "assistant" | "claim" | "lawyer" | "jobs" | null>(null)
+    useState<"assistant" | "claim" | "lawyer" | "jobs" | null>(null)
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("stub")
   const [assistantQuestion, setAssistantQuestion] = useState<string | undefined>()
+  const [assistantUpload, setAssistantUpload] = useState(false)
   const [paystubResult, setPaystubResult] = useState<PaystubResult | null>(null)
   const currentStub = paystubResult?.paystub ?? null
 
@@ -180,11 +180,14 @@ function AppInner({
     }
   }
 
-  const openAssistant = (mode: AssistantMode, question?: string) => {
+  // Everything happens in the one assistant chat, including pay stub uploads.
+  const openAssistant = (mode: AssistantMode, question?: string, upload = false) => {
     setAssistantMode(mode)
     setAssistantQuestion(question)
+    setAssistantUpload(upload)
     setDrawer("assistant")
   }
+  const checkPaystub = () => openAssistant("stub", undefined, !paystubResult)
 
   if (authStep === "loading") {
     return (
@@ -470,7 +473,7 @@ function AppInner({
                     className="mt-4"
                   />
                   <button
-                    onClick={() => setDrawer("stub")}
+                    onClick={() => checkPaystub()}
                     className="mt-5 flex items-center gap-1 text-sm font-bold text-amber-950"
                   >
                     {currentStub ? t("Review this upload") : t("Check a paystub")}{" "}
@@ -490,7 +493,7 @@ function AppInner({
                 </div>
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   <button
-                    onClick={() => setDrawer("stub")}
+                    onClick={() => openAssistant("stub", undefined, true)}
                     className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700">
@@ -628,7 +631,7 @@ function AppInner({
                   </p>
                 </div>
                 <button
-                  onClick={() => setDrawer("stub")}
+                  onClick={() => openAssistant("stub", undefined, true)}
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-bold text-white"
                 >
                   {t("Check a new pay stub")}
@@ -648,7 +651,7 @@ function AppInner({
                   <EnteredWage hourlyWage={profile?.hourlyWage} stub={currentStub} onEdit={() => setAuthStep("editOccupation")} className="mt-5" />
                   <p className="mt-5 text-sm text-slate-600">{t("Extracted values require review. No unpaid-wage amount or legal conclusion is calculated.")}</p>
                 </> : <p className="mt-3 text-sm text-slate-600">{t("Upload a paystub to see its hours, rates, deductions and pay here.")}</p>}
-                <button onClick={() => setDrawer("stub")} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? t("Review this paystub") : t("Upload a paystub")}</button>
+                <button onClick={() => checkPaystub()} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? t("Review this paystub") : t("Upload a paystub")}</button>
               </section>
             </>
           ) : (
@@ -779,7 +782,7 @@ function AppInner({
         >
           <aside
             className={`flex h-full w-full flex-col bg-white shadow-2xl ${
-              drawer === "stub" || drawer === "assistant" ? "max-w-2xl" : "max-w-lg"
+              drawer === "assistant" ? "max-w-2xl" : "max-w-lg"
             }`}
             onClick={(event) => event.stopPropagation()}
           >
@@ -789,9 +792,7 @@ function AppInner({
                   {t("FairShift assistant")}
                 </p>
                 <h2 className="mt-1 text-xl font-bold">
-                  {drawer === "stub"
-                    ? t("Check your pay stub")
-                    : drawer === "assistant"
+                  {drawer === "assistant"
                       ? t("Ask about your pay")
                     : drawer === "claim"
                       ? t("Start a wage claim")
@@ -809,25 +810,17 @@ function AppInner({
               </button>
             </div>
 
-            {drawer === "stub" && (
-              <PaystubPanel
-                result={paystubResult}
-                onResult={setPaystubResult}
-                onAskAssistant={(question) => openAssistant("stub", question)}
-                language={language}
-                hourlyWage={profile?.hourlyWage}
-                onEditWage={() => setAuthStep("editOccupation")}
-              />
-            )}
-
             {drawer === "assistant" && (
               <Assistant
                 language={language}
                 initialMode={assistantMode}
                 initialQuestion={assistantQuestion}
-                paystub={currentStub}
+                startUpload={assistantUpload}
+                paystubResult={paystubResult}
+                onPaystubResult={setPaystubResult}
+                hourlyWage={profile?.hourlyWage}
+                onEditWage={() => setAuthStep("editOccupation")}
                 onLanguageChange={changeLanguage}
-                onUploadPaystub={() => setDrawer("stub")}
               />
             )}
 
@@ -838,7 +831,7 @@ function AppInner({
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">{t("A paystub extraction does not establish a wage violation. A claim needs relevant work records, pay agreements and applicable rules reviewed separately. No evidence packet has been assembled.")}</p>
                 </div>
                 {currentStub && <p className="mt-5 text-sm leading-relaxed text-slate-600">{t("The current upload lists overtime pay of {amount} for {hours} overtime hours. Missing fields are unknown.", { amount: amount(currentStub.overtime_pay, currentStub.currency), hours: currentStub.overtime_hours ?? t("an unknown number of") })}</p>}
-                <button onClick={() => setDrawer("stub")} className="mt-6 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white">{t("Review current pay information")}</button>
+                <button onClick={() => checkPaystub()} className="mt-6 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white">{t("Review current pay information")}</button>
                 <button onClick={() => openAssistant("claim")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">{t("Write my claim summary with the assistant")}</button>
                 <button onClick={() => setDrawer("lawyer")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">{t("Find independent legal help")}</button>
               </div>

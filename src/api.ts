@@ -1,6 +1,6 @@
 // Client for the FairShift API in server/. In dev, Vite proxies /api to it.
 import { speechLang } from "./i18n"
-import type { Paystub } from "./paystub-api"
+import type { Paystub, ProcessedPaystub } from "./paystub-api"
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ""
 
@@ -217,8 +217,36 @@ export type PayCheckResult = {
   notes: string[]
 }
 
+export type WageClaim = {
+  employer: { name: string; address: string; phone: string; manager: string; business_type: string }
+  job: {
+    title: string
+    start_date: string
+    last_day: string
+    still_working: boolean
+    pay_type: string
+    pay_rate: string
+    paid_by: string
+    days_per_week: number | null
+    hours_per_day: number | null
+  }
+  period: { from: string; to: string }
+  wages_owed: { type: string; description: string; amount: number }[]
+  total_owed: number
+  what_happened: string
+  what_happened_english: string
+  evidence: string[]
+  other_payments: string
+  retaliation_concern: boolean
+  retaliation_details: string
+  language: string
+}
+
 export type AssistantCard =
   | { kind: "pay_check"; data: PayCheckResult }
+  | { kind: "wage_claim"; data: WageClaim }
+  // Added by the app (not the server) when a pay stub is uploaded in the chat.
+  | { kind: "paystub"; data: ProcessedPaystub }
   | {
       kind: "help"
       data: { location: string; results: Partial<Record<HelpCategory, Place[]>> }

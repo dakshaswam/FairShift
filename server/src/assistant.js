@@ -81,12 +81,12 @@ LIMITS
 - Never ask for or repeat Social Security numbers, bank account numbers, or passport numbers. If they appear in a photo, don't repeat them.`
 
 const MODE_INSTRUCTIONS = {
-  stub: "MODE: Pay stub. The worker wants a pay stub explained. If the app note has no pay stub fields, ask them in one short sentence to upload one with the camera button. When fields are present, explain every line, then list what is worth checking, then offer to check the pay with the check_pay tool.",
-  pay: "MODE: Check my pay. Guide the worker step by step to collect what check_pay needs, one question at a time, starting with whether they are paid hourly and whether they receive tips. Then call check_pay and explain the result in words.",
+  stub: "MODE: Pay stub. The worker wants a pay stub explained. If the app note has no pay stub fields, ask them in one short sentence to tap the camera button to upload one. When fields are present, explain every line, then list what is worth checking (compare the hourly rate with their saved hourly pay if both are known), then offer to check the pay with the check_pay tool.",
+  pay: "MODE: Check my pay. Guide the worker step by step to collect what check_pay needs, one question at a time, starting with whether they are paid hourly and whether they receive tips. Use the pay stub fields and saved hourly pay when present instead of asking again. Then call check_pay and explain the result in words. If money is owed, offer to build a wage claim.",
   rights:
     "MODE: My rights. Explain wage rights in simple words with short examples. Cover whichever of minimum wage, overtime, tipped pay, deductions, retaliation and protection regardless of immigration status the worker asks about, and what to do if they are afraid to speak up (the confidential helpline, a worker center, legal aid). Offer to call find_help.",
   claim:
-    "MODE: Build a claim. Interview the worker, one question at a time, for: employer name and address, job and dates, pay rate, hours worked each week, amounts paid, tips, deductions, how hours and pay were recorded, what evidence they have (pay stubs, messages, FairShift log), and whether they fear retaliation. Use check_pay for the amount. When you have enough, write a clear, factual summary in the worker's language, followed by a short English version for the agency. Say it is a summary to bring to the Labor Department or a worker center, not a filed claim; mention time limits; offer find_help.",
+    "MODE: Build a claim. Help the worker prepare a wage claim to file with their state labor office or the U.S. Department of Labor. Interview them one short question at a time, in this order, skipping anything already known from the profile, the pay stub fields or earlier answers: (1) the employer's business name, address and phone, and the owner or manager's name; (2) their job title, start date, and last day worked or whether they still work there; (3) how they are paid (hourly, salary, by the day, by the piece, tips), the rate, and whether by check, cash, direct deposit or an app; (4) usual days per week and hours per day; (5) what pay is missing and for which dates (unpaid hours, overtime, pay below minimum wage, tips kept by the employer, deductions, final paycheck); (6) hours worked and gross amount paid in each affected week, then call check_pay; (7) what evidence they have; (8) whether any of this money was paid another way (insurance, workers' compensation, unemployment); (9) whether they fear retaliation. Never ask for the worker's own name, address, phone, Social Security number, bank details, passport or immigration status: those are written on the form by hand. Accept 'I don't know' and move on. When you know at least the employer, the job and what is owed, call prepare_wage_claim. Then, in a few short sentences: ask them to check every line, write their name and contact details in the blank spaces, sign and date it, and bring it with copies of their evidence to their state labor office, the U.S. Department of Labor Wage and Hour Division (1-866-487-9243), or a worker center that can review it first. Say claims have time limits, so they shouldn't wait, and offer find_help.",
   offer:
     "MODE: Job offer check. Ask the worker to describe or paste the offer (pay, hours, overtime, tips, fees, how and when they will be paid). Look for the warning signs listed above, compare any stated hourly pay with the federal minimum wage (and say their state or city may require more), and give a short list of questions to ask the employer in writing. Offer find_jobs to see what similar jobs pay nearby.",
 }
@@ -158,6 +158,63 @@ const TOOLS = [
         location: { type: "string", description: "City or ZIP code. Omit to use the worker's saved city." },
         hourly_wage: { type: "number", description: "The worker's current hourly pay, if known and different from what they saved." },
       },
+    },
+  },
+  {
+    name: "prepare_wage_claim",
+    description:
+      "Fill in a printable wage claim form from what the worker told you. The app shows it as a form the worker can check, print, sign and bring to their state labor office, the U.S. Department of Labor or a worker center. Leave out anything you don't know; never include the worker's own name, address, phone, Social Security number, bank details or immigration status (they write those by hand). Free-text fields in the worker's language, except what_happened_english.",
+    parameters: {
+      type: "object",
+      properties: {
+        employer: {
+          type: "object",
+          properties: {
+            name: { type: "string" }, address: { type: "string" }, phone: { type: "string" },
+            manager: { type: "string", description: "Owner or manager's name." },
+            business_type: { type: "string", description: "For example restaurant, construction, cleaning." },
+          },
+        },
+        job: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            start_date: { type: "string", description: "YYYY-MM-DD if known, else as the worker said it." },
+            last_day: { type: "string", description: "Last day worked, if they no longer work there." },
+            still_working: { type: "boolean" },
+            pay_type: { type: "string", enum: ["hourly", "salary", "daily", "piece", "tips", "other"] },
+            pay_rate: { type: "string", description: "For example '$15.00 per hour' or '$120 per day'." },
+            paid_by: { type: "string", enum: ["check", "cash", "direct_deposit", "app", "other"] },
+            days_per_week: { type: "number" },
+            hours_per_day: { type: "number" },
+          },
+        },
+        period: {
+          type: "object",
+          description: "Dates the unpaid wages cover.",
+          properties: { from: { type: "string" }, to: { type: "string" } },
+        },
+        wages_owed: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["unpaid_wages", "overtime", "minimum_wage", "tips", "deductions", "final_pay", "other"] },
+              description: { type: "string" },
+              amount: { type: "number", description: "Dollars owed; use check_pay results." },
+            },
+            required: ["type", "amount"],
+          },
+        },
+        total_owed: { type: "number" },
+        what_happened: { type: "string", description: "Short factual account in the worker's language." },
+        what_happened_english: { type: "string", description: "The same account in English, for the agency." },
+        evidence: { type: "array", items: { type: "string" }, description: "Pay stubs, FairShift shift log, messages, witnesses." },
+        other_payments: { type: "string", description: "Any of this money paid another way (insurance, workers' compensation, unemployment)." },
+        retaliation_concern: { type: "boolean" },
+        retaliation_details: { type: "string" },
+      },
+      required: ["wages_owed"],
     },
   },
 ].map((spec) => ({ type: "function", function: spec }))
@@ -303,6 +360,13 @@ async function runTool(name, input, { profile, replyLanguage, emit, onLanguage }
       }
     }
 
+    case "prepare_wage_claim": {
+      const claim = cleanClaim(input)
+      if (!claim.wages_owed.length) throw new ToolInputError("wages_owed needs at least one amount")
+      emit({ type: "card", card: { kind: "wage_claim", data: { ...claim, language: replyLanguage } } })
+      return { shown: true, note: "The form is on screen. Tell the worker to check it, fill in the blanks by hand, sign it and where to bring it." }
+    }
+
     default:
       throw new ToolInputError(`Unknown tool ${name}`)
   }
@@ -322,6 +386,58 @@ function cleanPaystub(input) {
   stub.other_earnings = rows(input.other_earnings, ["label", "amount", "hours", "hourly_rate"])
   stub.warnings = Array.isArray(input.warnings) ? input.warnings.slice(0, 10).map(text).filter(Boolean) : []
   return stub
+}
+
+// Keeps only the claim fields the form shows, as short strings and numbers.
+const WAGE_TYPES = ["unpaid_wages", "overtime", "minimum_wage", "tips", "deductions", "final_pay", "other"]
+// Models sometimes send "Overtime" or a type in the worker's language; read it
+// from the type or the description rather than dropping it to "other".
+const WAGE_TYPE_HINTS = [
+  ["overtime", /overtime|over_time|extra|sobretiempo|ओवरटाइम|초과|加班/i],
+  ["minimum_wage", /minimum|mínimo|minimo/i],
+  ["tips", /tip|propina|gorjeta/i],
+  ["deductions", /deduct|descuento|dedução/i],
+  ["final_pay", /final|last_?pay|último/i],
+  ["unpaid_wages", /unpaid|no pagad|not paid|wages/i],
+]
+function wageType(type, description) {
+  const key = String(type ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_")
+  if (WAGE_TYPES.includes(key) && key !== "other") return key
+  const hint = `${key} ${description ?? ""}`
+  return WAGE_TYPE_HINTS.find(([, pattern]) => pattern.test(hint))?.[0] ?? "other"
+}
+
+function cleanClaim(input) {
+  const text = (value, max = 300) => (typeof value === "string" ? value.trim().slice(0, max) : "")
+  const number = (value) => (isNumber(value) && value >= 0 && value < 10_000_000 ? Math.round(value * 100) / 100 : null)
+  const pick = (object, keys) => Object.fromEntries(keys.map((key) => [key, text(object?.[key])]))
+  const job = input.job ?? {}
+  const wages = (Array.isArray(input.wages_owed) ? input.wages_owed : [])
+    .slice(0, 20)
+    .map((row) => ({
+      type: wageType(row?.type, row?.description),
+      description: text(row?.description),
+      amount: number(row?.amount),
+    }))
+    .filter((row) => row.amount !== null)
+  return {
+    employer: pick(input.employer, ["name", "address", "phone", "manager", "business_type"]),
+    job: {
+      ...pick(job, ["title", "start_date", "last_day", "pay_type", "pay_rate", "paid_by"]),
+      still_working: job.still_working === true,
+      days_per_week: number(job.days_per_week),
+      hours_per_day: number(job.hours_per_day),
+    },
+    period: pick(input.period, ["from", "to"]),
+    wages_owed: wages,
+    total_owed: number(input.total_owed) ?? Math.round(wages.reduce((sum, row) => sum + row.amount, 0) * 100) / 100,
+    what_happened: text(input.what_happened, 2000),
+    what_happened_english: text(input.what_happened_english, 2000),
+    evidence: (Array.isArray(input.evidence) ? input.evidence : []).slice(0, 15).map((item) => text(item)).filter(Boolean),
+    other_payments: text(input.other_payments, 600),
+    retaliation_concern: input.retaliation_concern === true,
+    retaliation_details: text(input.retaliation_details, 600),
+  }
 }
 
 // --- per-turn context note (sent as a mid-conversation system message) ---
