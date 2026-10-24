@@ -23,9 +23,18 @@ const originalFile = fs.readFileSync(path.join(root, 'samples/sample_paystub.png
 const browser = await chromium.launch({ executablePath: executable, headless: true })
 
 async function openPanel(page) {
+  await page.route('**/api/auth/me', route => route.fulfill({
+    json: {
+      user: {
+        id: 'synthetic-worker',
+        email: 'synthetic@example.test',
+        name: 'Synthetic Worker',
+        picture: null,
+        profile: { occupation: 'Barista', location: 'Queens, NY', hourlyWage: 15, language: 'English' },
+      },
+    },
+  }))
   await page.goto(base)
-  await page.getByRole('button', { name: /Continue with Google/ }).click()
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('button', { name: /Scan pay stub/ }).click()
   await page.getByLabel('Upload paystub', { exact: true }).waitFor()
 }
