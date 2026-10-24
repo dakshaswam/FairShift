@@ -12,6 +12,7 @@ const en = {
   copy: "Copy",
   copied: "Copied",
   photo: "Add pay stub photo",
+  usingStub: "Using your approved pay stub",
   mic: "Speak",
   clear: "New chat",
   disclaimer:
@@ -33,8 +34,6 @@ const en = {
     "The assistant isn’t set up yet. Ask the app team to add the AI key.",
   errRefusal:
     "I can’t help with that one. Try asking another way, or call the free helpline below.",
-  photoTip:
-    "Cover your Social Security and bank account numbers before taking the photo.",
   estimateTitle: "Estimated underpayment",
   colWeek: "Week",
   colHours: "Hours",
@@ -94,6 +93,7 @@ const es: AssistantStrings = {
   copy: "Copiar",
   copied: "Copiado",
   photo: "Agregar foto del talón de pago",
+  usingStub: "Usando tu talón de pago aprobado",
   mic: "Hablar",
   clear: "Nuevo chat",
   disclaimer:
@@ -115,8 +115,6 @@ const es: AssistantStrings = {
     "El asistente aún no está configurado. Pide al equipo de la app que agregue la clave de IA.",
   errRefusal:
     "No puedo ayudar con eso. Intenta preguntarlo de otra forma o llama a la línea gratuita de abajo.",
-  photoTip:
-    "Tapa tu número de Seguro Social y de cuenta bancaria antes de tomar la foto.",
   estimateTitle: "Pago faltante estimado",
   colWeek: "Semana",
   colHours: "Horas",
@@ -174,6 +172,7 @@ const hi: AssistantStrings = {
   copy: "कॉपी",
   copied: "कॉपी हो गया",
   photo: "पे स्टब की फोटो जोड़ें",
+  usingStub: "आपका स्वीकृत पे स्टब इस्तेमाल हो रहा है",
   mic: "बोलें",
   clear: "नई चैट",
   disclaimer:
@@ -194,7 +193,6 @@ const hi: AssistantStrings = {
   errNotConfigured: "सहायक अभी सेट नहीं है। ऐप टीम से AI कुंजी जोड़ने को कहें।",
   errRefusal:
     "मैं इसमें मदद नहीं कर सकता। दूसरे तरीके से पूछें, या नीचे दी गई मुफ़्त हेल्पलाइन पर कॉल करें।",
-  photoTip: "फोटो लेने से पहले सोशल सिक्योरिटी और बैंक खाता नंबर ढक दें।",
   estimateTitle: "अनुमानित कम भुगतान",
   colWeek: "सप्ताह",
   colHours: "घंटे",
@@ -252,6 +250,7 @@ const vi: AssistantStrings = {
   copy: "Sao chép",
   copied: "Đã sao chép",
   photo: "Thêm ảnh phiếu lương",
+  usingStub: "Đang dùng phiếu lương bạn đã duyệt",
   mic: "Nói",
   clear: "Trò chuyện mới",
   disclaimer:
@@ -272,7 +271,6 @@ const vi: AssistantStrings = {
   errNotConfigured: "Trợ lý chưa được thiết lập. Hãy nhờ nhóm phát triển thêm khóa AI.",
   errRefusal:
     "Tôi không thể giúp việc này. Hãy thử hỏi cách khác, hoặc gọi đường dây miễn phí bên dưới.",
-  photoTip: "Che số An sinh Xã hội và số tài khoản ngân hàng trước khi chụp ảnh.",
   estimateTitle: "Số tiền trả thiếu ước tính",
   colWeek: "Tuần",
   colHours: "Giờ",

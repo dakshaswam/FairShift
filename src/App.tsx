@@ -6,6 +6,8 @@ import { GoogleSignIn } from "./components/GoogleSignIn"
 import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
 import { OccupationStep } from "./components/OccupationStep"
+import { PaystubPanel } from "./components/PaystubPanel"
+import { amount, isUsd, type PaystubResult } from "./paystub-api"
 
 type IconName = "home" | "clock" | "file" | "help" | "shield" | "camera" | "chevron" | "briefcase" | "map" | "volume" | "check"
 
@@ -88,9 +90,6 @@ function Icon({
   )
 }
 
-const PAY_SUMMARY =
-  "I found a possible overtime issue. You worked 44 hours, but all 44 were paid at your regular $18 rate."
-
 const navItems: { id: string; label: string; icon: IconName }[] = [
   { id: "home", label: "Home", icon: "home" },
   { id: "shifts", label: "My shifts", icon: "clock" },
@@ -108,8 +107,10 @@ export default function App() {
   const [language, setLanguage] = useState("English")
   const [clockedIn, setClockedIn] = useState(false)
   const [drawer, setDrawer] =
-    useState<"stub" | "claim" | "lawyer" | "jobs" | null>(null)
+    useState<"stub" | "assistant" | "claim" | "lawyer" | "jobs" | null>(null)
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("stub")
+  const [paystubResult, setPaystubResult] = useState<PaystubResult | null>(null)
+  const currentStub = paystubResult?.paystub ?? null
 
   const profile = user?.profile
   const firstName = user?.name.split(" ")[0] ?? ""
@@ -162,7 +163,7 @@ export default function App() {
 
   const openAssistant = (mode: AssistantMode) => {
     setAssistantMode(mode)
-    setDrawer("stub")
+    setDrawer("assistant")
   }
 
   if (authStep === "loading") {
@@ -372,7 +373,7 @@ export default function App() {
             <Icon name="shield" className="mb-3 size-6 text-emerald-300" />
             <p className="text-sm font-bold">Your records belong to you.</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-300">
-              Every change is timestamped and securely saved.
+              Paystub data stays in this browser session. Nothing is saved as pay history.
             </p>
           </div>
         </aside>
@@ -383,7 +384,7 @@ export default function App() {
               <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <p className="mb-1 text-sm font-semibold text-emerald-700">
-                    Tuesday, June 18
+                    Current session
                   </p>
                   <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
                     {new Date().getHours() < 12
@@ -415,8 +416,8 @@ export default function App() {
                       </h2>
                       <p className="mt-2 max-w-md text-sm leading-relaxed text-emerald-100">
                         {clockedIn
-                          ? "Your start time and location are securely recorded."
-                          : "Clock in when you arrive. We’ll keep a verified record, even if your employer edits theirs."}
+                          ? "This prototype toggle is not a verified work record."
+                          : "Try the shift interface. Work-record storage is not connected in this prototype."}
                       </p>
                     </div>
                     <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10">
@@ -432,8 +433,8 @@ export default function App() {
                     </button>
                     <p className="text-xs text-emerald-100">
                       {clockedIn
-                        ? "Started at 8:04 AM · Queens, NY"
-                        : "Location is added only when you clock in"}
+                        ? "Prototype session only"
+                        : "No location or work evidence is recorded"}
                     </p>
                   </div>
                 </article>
@@ -441,23 +442,23 @@ export default function App() {
                 <article className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-7">
                   <div className="flex items-center justify-between">
                     <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold text-amber-900">
-                      Needs attention
+                      {currentStub ? "Review extracted values" : "No paystub yet"}
                     </span>
                     <span className="text-2xl font-bold text-amber-950">
-                      $86.40
+                      {currentStub ? amount(currentStub.net_pay, currentStub.currency) : "—"}
                     </span>
                   </div>
                   <h2 className="mt-5 text-lg font-bold">
-                    Possible missing overtime
+                    {currentStub ? "Current paystub" : "Understand your paycheck"}
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-amber-950/70">
-                    Your last check may be short by 4 overtime hours.
+                    {currentStub ? `${currentStub.employer_name ?? "Employer not provided"}. Overtime pay listed: ${amount(currentStub.overtime_pay, currentStub.currency)}.` : "Upload a document to see its actual hours, rates, deductions and pay."}
                   </p>
                   <button
-                    onClick={() => setDrawer("claim")}
+                    onClick={() => setDrawer("stub")}
                     className="mt-5 flex items-center gap-1 text-sm font-bold text-amber-950"
                   >
-                    See how we calculated this{" "}
+                    {currentStub ? "Review this upload" : "Check a paystub"}{" "}
                     <Icon name="chevron" className="size-4" />
                   </button>
                 </article>
@@ -474,7 +475,7 @@ export default function App() {
                 </div>
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   <button
-                    onClick={() => openAssistant("stub")}
+                    onClick={() => setDrawer("stub")}
                     className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700">
@@ -494,15 +495,15 @@ export default function App() {
                         <Icon name="briefcase" />
                       </span>
                       <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                        Matched
+                        {currentStub ? "Extracted · review needed" : "Awaiting upload"}
                       </span>
                     </div>
-                    <h3 className="mt-5 font-bold">Latest deposit</h3>
+                    <h3 className="mt-5 font-bold">Current paystub</h3>
                     <div className="mt-2 flex items-end justify-between">
                       <p className="text-sm text-slate-600">
-                        Jun 14 · Sunbright Cafe
+                        {currentStub ? `${currentStub.pay_date ?? "Pay date not provided"} · ${currentStub.employer_name ?? "Employer not provided"}` : "No current document"}
                       </p>
-                      <p className="text-lg font-bold">$684.22</p>
+                      <p className="text-lg font-bold">{currentStub ? amount(currentStub.net_pay, currentStub.currency) : "—"}</p>
                     </div>
                   </article>
                   <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2 xl:col-span-1">
@@ -511,7 +512,8 @@ export default function App() {
                         <Icon name="volume" />
                       </span>
                       <button
-                        onClick={() => speak(PAY_SUMMARY)}
+                        onClick={() => paystubResult && speak(paystubResult.assistant_message)}
+                        disabled={!paystubResult}
                         aria-label="Play pay explanation"
                         className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold"
                       >
@@ -520,7 +522,7 @@ export default function App() {
                     </div>
                     <h3 className="mt-5 font-bold">Listen in {language}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                      A simple audio summary of your latest paycheck.
+                      {paystubResult ? "Listen to this upload’s extracted summary." : "Upload and approve a paystub to hear its summary."}
                     </p>
                   </article>
                 </div>
@@ -561,6 +563,12 @@ export default function App() {
                     >
                       Find a better job
                     </button>
+                    <button
+                      onClick={() => openAssistant("ask")}
+                      className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold"
+                    >
+                      Ask the assistant
+                    </button>
                   </div>
                 </div>
               </section>
@@ -570,13 +578,13 @@ export default function App() {
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <p className="text-sm font-bold text-emerald-700">
-                    VERIFIED WORK LOG
+                    SHIFT INTERFACE
                   </p>
                   <h1 className="mt-2 text-3xl font-bold tracking-tight">
                     My shifts
                   </h1>
                   <p className="mt-2 text-slate-600">
-                    A timestamped record of every hour you worked.
+                    A prototype clock interface; not payroll evidence.
                   </p>
                 </div>
                 <button
@@ -586,75 +594,9 @@ export default function App() {
                   {clockedIn ? "End current shift" : "Clock in now"}
                 </button>
               </div>
-              <section className="mt-8 grid gap-5 sm:grid-cols-3">
-                {[
-                  ["This week", "44.0 hrs"],
-                  ["Regular", "40.0 hrs"],
-                  ["Overtime", "4.0 hrs"],
-                ].map(([label, value]) => (
-                  <article
-                    key={label}
-                    className="rounded-2xl border border-slate-200 bg-white p-5"
-                  >
-                    <p className="text-sm text-slate-500">{label}</p>
-                    <p className="mt-2 text-2xl font-bold">{value}</p>
-                  </article>
-                ))}
-              </section>
-              <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-200 p-5">
-                  <h2 className="text-lg font-bold">June 10–16</h2>
-                </div>
-                {[
-                  [
-                    "Friday, Jun 14",
-                    "8:04 AM – 6:12 PM",
-                    "10h 08m",
-                    "Edited by employer",
-                  ],
-                  [
-                    "Thursday, Jun 13",
-                    "8:02 AM – 4:34 PM",
-                    "8h 32m",
-                    "Verified",
-                  ],
-                  [
-                    "Wednesday, Jun 12",
-                    "7:58 AM – 4:21 PM",
-                    "8h 23m",
-                    "Verified",
-                  ],
-                  [
-                    "Tuesday, Jun 11",
-                    "8:07 AM – 5:02 PM",
-                    "8h 55m",
-                    "Verified",
-                  ],
-                  ["Monday, Jun 10", "8:01 AM – 4:03 PM", "8h 02m", "Verified"],
-                ].map(([day, time, total, status]) => (
-                  <button
-                    key={day}
-                    onClick={() =>
-                      alert(
-                        `${day}: full timestamp and edit history would open here.`,
-                      )
-                    }
-                    className="grid w-full gap-2 border-b border-slate-100 p-5 text-left last:border-0 sm:grid-cols-[1.2fr_1.4fr_.6fr_.9fr] sm:items-center"
-                  >
-                    <span className="font-bold">{day}</span>
-                    <span className="text-sm text-slate-600">{time}</span>
-                    <span className="text-sm font-bold">{total}</span>
-                    <span
-                      className={`text-sm font-bold ${
-                        status === "Verified"
-                          ? "text-emerald-700"
-                          : "text-amber-700"
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </button>
-                ))}
+              <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
+                <h2 className="text-lg font-bold">No verified work log is connected</h2>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">The clock toggle is a prototype interaction. It does not supply hours or evidence for paystub analysis. The assistant uses only the current uploaded document.</p>
               </section>
             </>
           ) : active === "pay" ? (
@@ -668,69 +610,30 @@ export default function App() {
                     Pay records
                   </h1>
                   <p className="mt-2 text-slate-600">
-                    Compare hours, pay stubs, and bank deposits in one place.
+                    Review the validated fields from your current uploaded paystub.
                   </p>
                 </div>
                 <button
-                  onClick={() => openAssistant("stub")}
+                  onClick={() => setDrawer("stub")}
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-bold text-white"
                 >
                   Check a new pay stub
                 </button>
               </div>
-              <section className="mt-8 rounded-3xl border border-amber-200 bg-amber-50 p-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                  <div>
-                    <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold text-amber-900">
-                      ACTION NEEDED
-                    </span>
-                    <h2 className="mt-4 text-xl font-bold">
-                      Possible missing overtime
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-600">
-                      June 1–14 pay period · Estimated amount owed
-                    </p>
-                  </div>
-                  <div className="sm:text-right">
-                    <p className="text-3xl font-bold">$86.40</p>
-                    <button
-                      onClick={() => setDrawer("claim")}
-                      className="mt-3 text-sm font-bold text-emerald-800"
-                    >
-                      Start a claim →
-                    </button>
-                  </div>
-                </div>
-              </section>
-              <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white">
-                <div className="grid grid-cols-[1fr_auto] gap-4 border-b border-slate-200 p-5">
-                  <h2 className="font-bold">Recent paychecks</h2>
-                  <span className="text-sm text-slate-500">Sunbright Cafe</span>
-                </div>
-                {[
-                  ["Jun 14, 2025", "$684.22", "44.0 hours", "Review needed"],
-                  ["May 31, 2025", "$720.18", "40.0 hours", "Matched"],
-                  ["May 17, 2025", "$698.40", "38.8 hours", "Matched"],
-                ].map(([date, amount, hours, status]) => (
-                  <button
-                    key={date}
-                    onClick={() => openAssistant("stub")}
-                    className="grid w-full grid-cols-2 gap-3 border-b border-slate-100 p-5 text-left last:border-0 sm:grid-cols-4 sm:items-center"
-                  >
-                    <span className="font-bold">{date}</span>
-                    <span className="text-sm text-slate-600">{hours}</span>
-                    <span className="font-bold">{amount}</span>
-                    <span
-                      className={`text-sm font-bold ${
-                        status === "Matched"
-                          ? "text-emerald-700"
-                          : "text-amber-700"
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </button>
-                ))}
+              <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Current upload only</p>
+                <h2 className="mt-3 text-xl font-bold">{currentStub?.employer_name ?? "No paystub has been extracted"}</h2>
+                {currentStub ? <>
+                  <p className="mt-2 text-sm text-slate-600">{currentStub.pay_period_start ?? "Start not provided"} to {currentStub.pay_period_end ?? "End not provided"} · Pay date {currentStub.pay_date ?? "not provided"}</p>
+                  <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div><dt className="text-sm text-slate-500">Gross pay</dt><dd className="mt-1 text-2xl font-bold">{amount(currentStub.gross_pay, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">Net pay</dt><dd className="mt-1 text-2xl font-bold">{amount(currentStub.net_pay, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">Regular hours / hourly rate</dt><dd className="mt-1 font-bold">{currentStub.regular_hours ?? "Not provided"} / {amount(currentStub.regular_hourly_rate, currentStub.currency)}</dd></div>
+                    <div><dt className="text-sm text-slate-500">Overtime hours / pay listed</dt><dd className="mt-1 font-bold">{currentStub.overtime_hours ?? "Not provided"} / {amount(currentStub.overtime_pay, currentStub.currency)}</dd></div>
+                  </dl>
+                  <p className="mt-5 text-sm text-slate-600">Extracted values require review. No unpaid-wage amount or legal conclusion is calculated.</p>
+                </> : <p className="mt-3 text-sm text-slate-600">Choose a document and approve its redacted text. Older demo paychecks are not evidence for your upload.</p>}
+                <button onClick={() => setDrawer("stub")} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? "Review this paystub" : "Upload a paystub"}</button>
               </section>
             </>
           ) : (
@@ -757,7 +660,7 @@ export default function App() {
                     Request a wage claim
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-emerald-100">
-                    Build a ready-to-review packet from your verified records.
+                    Understand what additional evidence a pay review may need.
                   </p>
                   <span className="mt-6 block text-sm font-bold">
                     Start claim →
@@ -785,7 +688,9 @@ export default function App() {
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     {profile?.hourlyWage
                       ? `See nearby ${profile.occupation} jobs paying more than your $${profile.hourlyWage}/hour.`
-                      : `See what ${profile?.occupation ?? "similar"} jobs pay near you.`}
+                      : currentStub?.regular_hourly_rate && isUsd(currentStub.currency)
+                        ? `Compare nearby advertised pay with the current document's ${amount(currentStub.regular_hourly_rate, currentStub.currency)} hourly rate.`
+                        : `See what ${profile?.occupation ?? "similar"} jobs pay near you.`}
                   </p>
                   <span className="mt-6 block text-sm font-bold text-emerald-700">
                     Browse jobs →
@@ -842,7 +747,7 @@ export default function App() {
         >
           <aside
             className={`flex h-full w-full flex-col bg-white shadow-2xl ${
-              drawer === "stub" ? "max-w-2xl" : "max-w-lg"
+              drawer === "stub" || drawer === "assistant" ? "max-w-2xl" : "max-w-lg"
             }`}
             onClick={(event) => event.stopPropagation()}
           >
@@ -853,7 +758,9 @@ export default function App() {
                 </p>
                 <h2 className="mt-1 text-xl font-bold">
                   {drawer === "stub"
-                    ? "Ask about your pay"
+                    ? "Check your pay stub"
+                    : drawer === "assistant"
+                      ? "Ask about your pay"
                     : drawer === "claim"
                       ? "Start a wage claim"
                       : drawer === "lawyer"
@@ -871,65 +778,33 @@ export default function App() {
             </div>
 
             {drawer === "stub" && (
+              <PaystubPanel
+                result={paystubResult}
+                onResult={setPaystubResult}
+                onAskAssistant={() => openAssistant("stub")}
+              />
+            )}
+
+            {drawer === "assistant" && (
               <Assistant
                 language={language}
                 initialMode={assistantMode}
+                paystub={currentStub}
                 onLanguageChange={changeLanguage}
+                onUploadPaystub={() => setDrawer("stub")}
               />
             )}
 
             {drawer === "claim" && (
               <div className="flex-1 overflow-y-auto p-6">
-                <div className="rounded-2xl bg-amber-50 p-5">
-                  <p className="text-sm font-bold text-amber-900">
-                    Estimated wages owed
-                  </p>
-                  <p className="mt-1 text-3xl font-bold">$86.40</p>
-                  <p className="mt-2 text-sm text-amber-900/70">
-                    4 overtime hours missing from your June 14 paycheck.
-                  </p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-sm font-bold text-slate-900">Unpaid wages: not determined</p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">A paystub extraction does not establish a wage violation. A claim needs relevant work records, pay agreements and applicable rules reviewed separately. No evidence packet has been assembled.</p>
                 </div>
-                <h3 className="mt-7 font-bold">
-                  Your evidence packet is ready
-                </h3>
-                {[
-                  "Timestamped shift records",
-                  "Pay stub and deposit match",
-                  "Overtime calculation",
-                  "Employer details",
-                ].map((item) => (
-                  <p
-                    key={item}
-                    className="mt-3 flex items-center gap-2 text-sm text-slate-700"
-                  >
-                    <span className="grid size-5 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                      <Icon name="check" className="size-3" />
-                    </span>
-                    {item}
-                  </p>
-                ))}
-                <button
-                  onClick={() =>
-                    alert(
-                      "Demo: Your claim packet is ready for review. No data was submitted.",
-                    )
-                  }
-                  className="mt-8 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white"
-                >
-                  Review and request claim
-                </button>
-                <button
-                  onClick={() => openAssistant("claim")}
-                  className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold"
-                >
-                  Write my claim summary with the assistant
-                </button>
-                <button
-                  onClick={() => setDrawer("lawyer")}
-                  className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold"
-                >
-                  Talk to a lawyer first
-                </button>
+                {currentStub && <p className="mt-5 text-sm leading-relaxed text-slate-600">The current upload lists overtime pay of {amount(currentStub.overtime_pay, currentStub.currency)} for {currentStub.overtime_hours ?? "an unknown number of"} overtime hours. Missing fields are unknown.</p>}
+                <button onClick={() => setDrawer("stub")} className="mt-6 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white">Review current pay information</button>
+                <button onClick={() => openAssistant("claim")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">Write my claim summary with the assistant</button>
+                <button onClick={() => setDrawer("lawyer")} className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold">Find independent legal help</button>
               </div>
             )}
 
@@ -941,9 +816,14 @@ export default function App() {
               <JobPay
                 language={language}
                 defaultLocation={workLocation}
-                defaultJobTitle={profile?.occupation ?? ""}
-                defaultWage={profile?.hourlyWage ?? undefined}
-                autoSearch
+                defaultJobTitle={profile?.occupation ?? "Barista"}
+                defaultWage={
+                  profile?.hourlyWage ??
+                  (currentStub?.regular_hourly_rate && isUsd(currentStub.currency)
+                    ? Number(currentStub.regular_hourly_rate)
+                    : undefined)
+                }
+                autoSearch={Boolean(profile?.occupation)}
               />
             )}
           </aside>

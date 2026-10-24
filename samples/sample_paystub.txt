@@ -1,0 +1,37 @@
+FICTIONAL TEST PAYSTUB - NOT A REAL DOCUMENT
+All identifiers and company details below are invented for testing.
+Employer: FAIRSHIFT DEMO CAFE LLC
+Employee: Avery Example
+SSN: 000-12-3456
+Partial SSN: ***-**-4321
+Employee ID: FS-DEMO-0042
+Employee Address: 123 Fictional Lane Apt 4
+Fabletown, TX 00000
+Email: avery.example@example.invalid
+Phone: 202-555-0148
+Bank account: 000123456789
+Routing number: 000000000
+
+Pay Period Start: 2026-09-01
+Pay Period End: 2026-09-14
+Pay Date: 2026-09-18
+Currency: USD
+
+EARNINGS - CURRENT PERIOD
+Regular: Hours 80.00 | Hourly Rate 18.00 | Pay 1440.00
+Overtime: Hours 5.00 | Hourly Rate 27.00 | Pay 135.00
+Tips: 40.00
+Gross Pay: 1615.00
+
+EMPLOYEE DEDUCTIONS - CURRENT PERIOD
+Federal withholding: 150.00
+Social Security: 100.00
+Medicare: 23.42
+Total current deductions: 273.42
+Net Pay: 1341.58
+All current employee deductions are listed.
+Gross pay includes all tips; no reimbursements or noncash adjustments.
+
+YEAR TO DATE - DO NOT USE AS CURRENT PERIOD
+YTD Gross Pay: 19000.00
+YTD Net Pay: 15800.00

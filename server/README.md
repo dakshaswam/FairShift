@@ -146,7 +146,7 @@ Errors come back as `{ "error": "message" }`, with status 400 for bad input and 
 
 ## Assistant chat
 
-`POST /api/assistant/chat` (requires sign-in) runs the FairShift assistant on Claude Opus 5.5 (`claude-opus-5-5`). It explains pay stub photos line by line, answers wage questions in the worker's language, and uses four tools:
+`POST /api/assistant/chat` (requires sign-in) runs the FairShift assistant on Claude Opus 5.5 (`claude-opus-5-5`). It explains the worker's pay stub line by line, answers wage questions in the worker's language, and uses four tools:
 
 | tool | what it does |
 |---|---|
@@ -155,7 +155,7 @@ Errors come back as `{ "error": "message" }`, with status 400 for bad input and 
 | `find_jobs` | Real job posts and typical pay near the worker (the `/api/jobs/compare` search) |
 | `set_language` | Switches the reply language. It also switches the app's language when the app supports it. |
 
-The body is `{ conversationId?, message, image?: { mediaType, data }, mode?, replyLanguage?, speed?: "fast" | "careful" }`. `mode` is one of `ask`, `stub`, `pay`, `rights`, `claim` or `offer`. "Fast" runs at low effort and "Careful" at high effort, on the same model.
+The body is `{ conversationId?, message, paystub?, mode?, replyLanguage?, speed?: "fast" | "careful" }`. `paystub` holds the fields the worker approved in the paystub upload flow (`fairshift_paystub`). The assistant never receives the photo or PDF, and the server keeps only the known paystub fields, as short strings. `mode` is one of `ask`, `stub`, `pay`, `rights`, `claim` or `offer`. "Fast" runs at low effort and "Careful" at high effort, on the same model.
 
 The response is a server-sent event stream:
 

@@ -1,0 +1,23 @@
+{
+  "employer_name": "FAIRSHIFT DEMO CAFE LLC",
+  "pay_period_start": "2026-09-01",
+  "pay_period_end": "2026-09-14",
+  "pay_date": "2026-09-18",
+  "currency": "USD",
+  "regular_hours": "80.00",
+  "regular_hourly_rate": "18.00",
+  "regular_pay": "1440.00",
+  "overtime_hours": "5.00",
+  "overtime_hourly_rate": "27.00",
+  "overtime_pay": "135.00",
+  "tips": "40.00",
+  "gross_pay": "1615.00",
+  "deductions": [
+    {"label": "Federal withholding", "amount": "150.00"},
+    {"label": "Social Security", "amount": "100.00"},
+    {"label": "Medicare", "amount": "23.42"}
+  ],
+  "net_pay": "1341.58",
+  "other_earnings": [],
+  "warnings": ["User review is required. Extracted values are not verified."]
+}

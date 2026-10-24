@@ -7,6 +7,7 @@ import {
   type HelpCategory,
   type PayCheckResult,
 } from "../api"
+import type { Paystub } from "../paystub-api"
 import {
   assistantStrings,
   type AssistantMode,
@@ -15,10 +16,8 @@ import {
 import { JobCard, PayRange } from "./JobPay"
 import { PlaceCard, languageNames } from "./LocalHelp"
 
-type Retry = { text: string; image: Blob | null }
-
 type Item =
-  | { id: string; role: "user"; text: string; imageUrl?: string }
+  | { id: string; role: "user"; text: string }
   | {
       id: string
       role: "bot"
@@ -26,7 +25,7 @@ type Item =
       cards: AssistantCard[]
       status: "streaming" | "done" | "error"
       error?: string
-      retry?: Retry
+      retry?: string
     }
 
 type BotItem = Extract<Item, { role: "bot" }>
@@ -49,41 +48,6 @@ function readSpeed(): "fast" | "careful" {
   } catch {
     return "fast"
   }
-}
-
-// Downscale photos so uploads stay small and readable.
-function shrink(file: File) {
-  return new Promise<Blob>((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      const scale = Math.min(1, 1600 / Math.max(img.width, img.height))
-      const canvas = document.createElement("canvas")
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
-      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("blob"))),
-        "image/jpeg",
-        0.85,
-      )
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error("img"))
-    }
-    img.src = url
-  })
-}
-
-function blobToBase64(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "")
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
 }
 
 // Tiny Markdown renderer (paragraphs, lists, bold, italics, code). Escapes first.
@@ -159,21 +123,26 @@ type SpeechRecognitionLike = {
   onend: () => void
 }
 
+// Pay stubs reach the assistant only as the fields the worker approved in the
+// private upload flow (PaystubPanel); the original photo or PDF is never sent here.
 export function Assistant({
   language,
   initialMode = "ask",
+  paystub,
   onLanguageChange,
+  onUploadPaystub,
 }: {
   language: string
   initialMode?: AssistantMode
+  paystub: Paystub | null
   onLanguageChange: (language: string) => void
+  onUploadPaystub: () => void
 }) {
   const t = assistantStrings(language)
   const [items, setItems] = useState<Item[]>(saved.items)
   const [mode, setMode] = useState<AssistantMode>(initialMode)
   const [speed, setSpeed] = useState(readSpeed)
   const [input, setInput] = useState("")
-  const [image, setImage] = useState<{ blob: Blob; url: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -186,7 +155,6 @@ export function Assistant({
   const recognizerRef = useRef<SpeechRecognitionLike | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
   const lastLanguage = useRef(language)
 
   useEffect(() => {
@@ -303,17 +271,6 @@ export function Assistant({
     }
   }
 
-  const pickPhoto = async (file: File | undefined) => {
-    if (!file) return
-    try {
-      const blob = await shrink(file)
-      setImage({ blob, url: URL.createObjectURL(blob) })
-      inputRef.current?.focus()
-    } catch {
-      setImage(null)
-    }
-  }
-
   const errorText = (event: Extract<AssistantEvent, { type: "error" }>) =>
     event.message ??
     {
@@ -324,12 +281,9 @@ export function Assistant({
       error: t.errGeneric,
     }[event.code]
 
-  const send = async (raw: string, retryImage: Blob | null = null) => {
+  const send = async (raw: string) => {
     if (busy) return
-    const photo = retryImage
-      ? { blob: retryImage, url: URL.createObjectURL(retryImage) }
-      : image
-    const text = raw.trim() || (photo ? t.starters[0] : "")
+    const text = raw.trim()
     if (!text) return
 
     stopSpeaking()
@@ -341,11 +295,10 @@ export function Assistant({
     pendingRef.current = [userId, botId]
     setItems((current) => [
       ...current,
-      { id: userId, role: "user", text, imageUrl: photo?.url },
+      { id: userId, role: "user", text },
       { id: botId, role: "bot", text: "", cards: [], status: "streaming" },
     ])
     setInput("")
-    setImage(null)
 
     const updateBot = (change: (bot: BotItem) => BotItem) =>
       setItems((current) =>
@@ -358,7 +311,7 @@ export function Assistant({
         ...bot,
         status: "error",
         error,
-        retry: { text, image: photo?.blob ?? null },
+        retry: text,
       }))
 
     const controller = new AbortController()
@@ -370,9 +323,7 @@ export function Assistant({
         {
           conversationId: saved.conversationId,
           message: text,
-          image: photo
-            ? { mediaType: "image/jpeg", data: await blobToBase64(photo.blob) }
-            : undefined,
+          paystub: paystub ?? undefined,
           mode,
           replyLanguage: replyOverride ?? language,
           speed,
@@ -425,16 +376,14 @@ export function Assistant({
 
   const retry = (item: BotItem) => {
     if (!item.retry) return
-    const { text, image: retryImage } = item.retry
     const index = items.findIndex((i) => i.id === item.id)
     setItems((current) => current.filter((_, i) => i !== index && i !== index - 1))
-    send(text, retryImage)
+    send(item.retry)
   }
 
   const newChat = () => {
     controllerRef.current?.abort()
     stopSpeaking()
-    setImage(null)
     setItems([])
     saved.conversationId = undefined
   }
@@ -475,6 +424,12 @@ export function Assistant({
           ))}
         </div>
         <p className="mt-2 text-sm text-slate-500">{t.hints[mode]}</p>
+        {paystub && (
+          <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
+            {t.usingStub}: {paystub.employer_name ?? "—"}
+            {paystub.pay_date ? ` · ${paystub.pay_date}` : ""}
+          </p>
+        )}
       </div>
 
       <div
@@ -492,7 +447,7 @@ export function Assistant({
               {t.starters.map((starter, i) => (
                 <button
                   key={starter}
-                  onClick={() => (i === 0 ? fileRef.current?.click() : send(starter))}
+                  onClick={() => (i === 0 && !paystub ? onUploadPaystub() : send(starter))}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-left text-sm font-semibold hover:border-emerald-600"
                 >
                   {starter}
@@ -507,13 +462,6 @@ export function Assistant({
                 key={item.id}
                 className="max-w-[86%] self-end whitespace-pre-wrap rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 leading-relaxed text-white [overflow-wrap:anywhere]"
               >
-                {item.imageUrl && (
-                  <img
-                    src={item.imageUrl}
-                    alt="Pay stub"
-                    className="mb-2 max-h-56 rounded-lg"
-                  />
-                )}
                 {item.text}
               </div>
             ) : (
@@ -568,19 +516,6 @@ export function Assistant({
       </div>
 
       <div className="border-t border-slate-200 px-4 pb-3 pt-3">
-        {image && (
-          <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 p-1.5 text-xs text-slate-600">
-            <img src={image.url} alt="" className="size-11 rounded-lg object-cover" />
-            <span className="flex-1 leading-snug">{t.photoTip}</span>
-            <button
-              onClick={() => setImage(null)}
-              aria-label="Remove photo"
-              className="px-2 text-xl text-slate-500"
-            >
-              ×
-            </button>
-          </div>
-        )}
         {voiceNote && <p className="mb-2 text-sm text-slate-500">{voiceNote}</p>}
 
         <form
@@ -590,19 +525,9 @@ export function Assistant({
           }}
           className="flex items-end gap-2"
         >
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={(event) => {
-              pickPhoto(event.target.files?.[0])
-              event.target.value = ""
-            }}
-          />
           <button
             type="button"
-            onClick={() => fileRef.current?.click()}
+            onClick={onUploadPaystub}
             aria-label={t.photo}
             title={t.photo}
             className="grid size-11 shrink-0 place-items-center rounded-full border border-slate-200 hover:border-slate-400"

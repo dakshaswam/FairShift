@@ -1,4 +1,6 @@
 // Client for the FairShift API in server/. In dev, Vite proxies /api to it.
+import type { Paystub } from "./paystub-api"
+
 const API_BASE = import.meta.env.VITE_API_URL ?? ""
 
 export type HelpCategory = "legal_aid" | "worker_center" | "consulate"
@@ -254,7 +256,7 @@ export async function chatWithAssistant(
   body: {
     conversationId?: string
     message: string
-    image?: { mediaType: string; data: string }
+    paystub?: Paystub
     mode: string
     replyLanguage: string
     speed: "fast" | "careful"

@@ -21,8 +21,11 @@ const MAX_TOOL_ROUNDS = 8
 const CONVERSATION_TTL_MS = 6 * 60 * 60 * 1000
 const MAX_TURNS = 40
 const RATE_LIMIT = { messages: 40, windowMs: 15 * 60 * 1000 }
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-const MAX_IMAGE_BASE64 = 6_000_000
+const PAYSTUB_TEXT_FIELDS = [
+  "employer_name", "pay_period_start", "pay_period_end", "pay_date", "currency",
+  "regular_hours", "regular_hourly_rate", "regular_pay", "overtime_hours", "overtime_hourly_rate",
+  "overtime_pay", "tips", "gross_pay", "net_pay",
+]
 
 let client = null
 const getClient = () => (client ??= new Anthropic())
@@ -34,10 +37,11 @@ STYLE
 - Keep replies short. Ask at most one question at a time. Use short lists when explaining several items.
 - If the worker asks to use a different language (for example "speak Korean" or "en español"), or writes in a language other than the current reply language and seems to want it, call the set_language tool with the language name in English, then continue your reply in the new language.
 
-PAY STUB PHOTOS
-- If a photo is attached, read it and explain every line in order: pay period, hours (regular and overtime), rate, gross pay, each tax and deduction (federal income tax, Social Security, Medicare, state or local tax, insurance and so on), net pay, and year-to-date totals if shown. Say what each line means in plain words.
-- Then point out anything that looks wrong or worth checking, such as hours lower than the worker says they worked, no overtime line when hours exceed 40 in a week, a pay rate below the minimum wage, deductions for uniforms, tools, breakage or cash shortages, or pay that seems partly off the books. Say "worth checking" rather than accusing the employer.
-- If text is blurry or unreadable, say so and ask for a clearer photo. Don't guess numbers you cannot read.
+PAY STUBS
+- You never see the pay stub itself. When the worker has uploaded one, the app note includes the fields FairShift extracted from it after the worker removed personal details and approved the text. A null field means it could not be read, not that it was zero.
+- Explain the fields in order, in plain words: pay period and pay date, regular hours and rate, overtime hours, rate and pay, tips, gross pay, each deduction (federal income tax, Social Security, Medicare, state or local tax, insurance and so on), and net pay. Mention any extraction warnings.
+- Then point out anything worth checking, such as no overtime pay when hours exceed 40 in a week, an overtime rate below 1.5 times the regular rate, a rate below the minimum wage, deductions for uniforms, tools, breakage or cash shortages, or totals that don't add up. Say "worth checking" rather than accusing the employer, and remind the worker to compare with the original document.
+- If no pay stub is in the note and the worker wants one explained, ask them to upload it with the camera button. It is read privately on FairShift's side, and they approve the text before anything is shared. Don't guess values that aren't in the fields.
 
 MONEY MATH
 - Don't calculate an underpayment yourself. When the worker gives enough information, call the check_pay tool. You need: whether they are paid hourly (hourly rate), whether they are a tipped worker (and the cash hourly wage and tips if so), hours worked in each workweek, and the gross amount paid for each week (before taxes). Ask for any missing piece one at a time. If the worker is paid a flat day or salary rate, ask how many hours they really worked and divide to get the hourly rate, and say you did so.
@@ -78,7 +82,7 @@ LIMITS
 - Never ask for or repeat Social Security numbers, bank account numbers, or passport numbers. If they appear in a photo, don't repeat them.`
 
 const MODE_INSTRUCTIONS = {
-  stub: "MODE: Pay stub. The worker wants a pay stub explained. If no photo is attached to this conversation yet, ask them in one short sentence to add a photo with the camera button, and remind them to cover account numbers. When a photo is attached, explain every line, then list what is worth checking, then offer to check the pay with the check_pay tool.",
+  stub: "MODE: Pay stub. The worker wants a pay stub explained. If the app note has no pay stub fields, ask them in one short sentence to upload one with the camera button. When fields are present, explain every line, then list what is worth checking, then offer to check the pay with the check_pay tool.",
   pay: "MODE: Check my pay. Guide the worker step by step to collect what check_pay needs, one question at a time, starting with whether they are paid hourly and whether they receive tips. Then call check_pay and explain the result in words.",
   rights:
     "MODE: My rights. Explain wage rights in simple words with short examples. Cover whichever of minimum wage, overtime, tipped pay, deductions, retaliation and protection regardless of immigration status the worker asks about, and what to do if they are afraid to speak up (the confidential helpline, a worker center, legal aid). Offer to call find_help.",
@@ -307,9 +311,25 @@ async function runTool(name, input, { profile, replyLanguage, emit }) {
   }
 }
 
+// Keeps only the known extracted fields, as short strings, from the worker's approved
+// pay stub. Anything else the browser sends is dropped.
+function cleanPaystub(input) {
+  if (!input || typeof input !== "object") return null
+  const text = (value) => (typeof value === "string" || typeof value === "number" ? String(value).slice(0, 80) : null)
+  const rows = (value, keys) =>
+    Array.isArray(value)
+      ? value.slice(0, 30).map((row) => Object.fromEntries(keys.map((key) => [key, text(row?.[key])])))
+      : []
+  const stub = Object.fromEntries(PAYSTUB_TEXT_FIELDS.map((key) => [key, text(input[key])]))
+  stub.deductions = rows(input.deductions, ["label", "amount"])
+  stub.other_earnings = rows(input.other_earnings, ["label", "amount", "hours", "hourly_rate"])
+  stub.warnings = Array.isArray(input.warnings) ? input.warnings.slice(0, 10).map(text).filter(Boolean) : []
+  return stub
+}
+
 // --- per-turn context note (sent as a mid-conversation system message) ---
 
-function contextNote({ replyLanguage, profile, mode }) {
+function contextNote({ replyLanguage, profile, mode, paystub }) {
   const saved = []
   if (profile?.occupation) saved.push(`job: ${profile.occupation}`)
   if (profile?.location) saved.push(`city: ${profile.location}`)
@@ -317,6 +337,9 @@ function contextNote({ replyLanguage, profile, mode }) {
   return [
     `Reply language: ${replyLanguage}.`,
     saved.length ? `Saved in the worker's FairShift profile: ${saved.join("; ")}.` : "The worker has not saved a job or city yet.",
+    paystub
+      ? `Pay stub fields the worker approved (extracted from their upload, personal details removed): ${JSON.stringify(paystub)}`
+      : "No pay stub has been uploaded in this session.",
     MODE_INSTRUCTIONS[mode] ?? "",
   ]
     .filter(Boolean)
@@ -337,23 +360,20 @@ const finalText = (content) => {
 
 export const assistantRouter = Router()
 
-// Pay stub photos need a bigger body limit than the rest of the API.
-assistantRouter.use("/assistant", express.json({ limit: "8mb" }))
+// Chat bodies carry the approved pay stub fields, a little over the global limit.
+assistantRouter.use("/assistant", express.json({ limit: "100kb" }))
 
 assistantRouter.get("/assistant/status", requireUser, (_req, res) => {
   res.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN), model: MODEL })
 })
 
 // POST /api/assistant/chat
-// { conversationId?, message, image?: { mediaType, data(base64) }, mode?, replyLanguage?, speed?: "fast" | "careful" }
+// { conversationId?, message, paystub?, mode?, replyLanguage?, speed?: "fast" | "careful" }
 assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
   const body = req.body ?? {}
   const text = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : ""
-  const image = body.image
-  if (!text && !image) return res.status(400).json({ error: "Write a message or add a photo." })
-  if (image && (!IMAGE_TYPES.includes(image.mediaType) || typeof image.data !== "string" || image.data.length > MAX_IMAGE_BASE64)) {
-    return res.status(400).json({ error: "That photo can't be used. Try a JPG or PNG under 4 MB." })
-  }
+  if (!text) return res.status(400).json({ error: "Write a message first." })
+  const paystub = cleanPaystub(body.paystub)
   if (rateLimited(req.user.id)) {
     return res.status(429).json({ error: "You've sent a lot of messages. Wait a few minutes and try again." })
   }
@@ -393,12 +413,9 @@ assistantRouter.post("/assistant/chat", requireUser, async (req, res) => {
 
   // This turn's messages are kept apart and saved to the conversation only when
   // the turn completes, so stored history only ever grows by whole turns.
-  const userContent = []
-  if (image) userContent.push({ type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } })
-  userContent.push({ type: "text", text: text || "Please explain this pay stub." })
   const turn = [
-    { role: "user", content: userContent },
-    { role: "system", content: contextNote({ replyLanguage, profile, mode: body.mode }) },
+    { role: "user", content: [{ type: "text", text }] },
+    { role: "system", content: contextNote({ replyLanguage, profile, mode: body.mode, paystub }) },
   ]
 
   let committed = ""

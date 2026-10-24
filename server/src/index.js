@@ -15,7 +15,7 @@ app.use((req, res, next) => {
   next()
 })
 
-// Mounted before the small global body limit: it accepts pay stub photos.
+// Mounted before the small global body limit: chat bodies carry pay stub fields.
 app.use("/api", assistantRouter)
 app.use(express.json({ limit: "20kb" }))
 
