@@ -1,4 +1,5 @@
 import express from "express"
+import { assistantRouter } from "./assistant.js"
 import { authRouter } from "./auth.js"
 import { serpRouter } from "./routes.js"
 
@@ -14,6 +15,8 @@ app.use((req, res, next) => {
   next()
 })
 
+// Mounted before the small global body limit: it accepts pay stub photos.
+app.use("/api", assistantRouter)
 app.use(express.json({ limit: "20kb" }))
 
 app.get("/api/health", (_req, res) => {
@@ -21,6 +24,7 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     serpApiConfigured: Boolean(process.env.SERPAPI_KEY),
     googleSignInConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
+    assistantConfigured: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
   })
 })
 

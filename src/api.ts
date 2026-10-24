@@ -196,10 +196,100 @@ const SPEECH_LANG: Record<string, string> = {
   "Tiếng Việt": "vi-VN",
 }
 
+export const speechLang = (language: string) => SPEECH_LANG[language] ?? "en-US"
+
 export function speakIn(language: string, text: string) {
   if (!("speechSynthesis" in window)) return
   const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = SPEECH_LANG[language] ?? "en-US"
+  utterance.lang = speechLang(language)
   window.speechSynthesis.cancel()
   window.speechSynthesis.speak(utterance)
+}
+
+export type PayCheckResult = {
+  weeks: {
+    week: string
+    hours: number
+    overtime_hours: number
+    should_have_been_paid: number
+    actually_paid: number
+    difference: number
+  }[]
+  total_underpayment: number
+  minimum_wage_used: number
+  notes: string[]
+}
+
+export type AssistantCard =
+  | { kind: "pay_check"; data: PayCheckResult }
+  | {
+      kind: "help"
+      data: { location: string; results: Partial<Record<HelpCategory, Place[]>> }
+    }
+  | {
+      kind: "jobs"
+      data: {
+        jobTitle: string
+        location: string
+        stats: PayStats | null
+        comparison: JobsResponse["comparison"]
+        jobs: Job[]
+      }
+    }
+
+export type AssistantEvent =
+  | { type: "conversation"; id: string }
+  | { type: "text"; text: string }
+  | { type: "card"; card: AssistantCard }
+  | { type: "language"; language: string; appLanguage: string | null }
+  | { type: "done" }
+  | {
+      type: "error"
+      code: "error" | "refusal" | "rate_limited" | "not_configured" | "unavailable"
+      message?: string
+    }
+
+// Sends one message to the assistant and calls onEvent for each streamed event.
+export async function chatWithAssistant(
+  body: {
+    conversationId?: string
+    message: string
+    image?: { mediaType: string; data: string }
+    mode: string
+    replyLanguage: string
+    speed: "fast" | "careful"
+  },
+  onEvent: (event: AssistantEvent) => void,
+  signal: AbortSignal,
+) {
+  const response = await fetch(`${API_BASE}/api/assistant/chat`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  })
+  if (!response.ok || !response.body) {
+    const data = await response.json().catch(() => ({}))
+    onEvent({
+      type: "error",
+      code: response.status === 429 ? "rate_limited" : "error",
+      message: data.error,
+    })
+    return
+  }
+
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+  let buffer = ""
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += value
+    const chunks = buffer.split("\n\n")
+    buffer = chunks.pop() ?? ""
+    for (const chunk of chunks) {
+      const line = chunk.split("\n").find((l) => l.startsWith("data: "))
+      if (line) onEvent(JSON.parse(line.slice(6)) as AssistantEvent)
+    }
+  }
 }

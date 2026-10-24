@@ -20,6 +20,7 @@ Config lives in `server/.env`, which git ignores:
 SERPAPI_KEY=...            # required
 GOOGLE_CLIENT_ID=...       # required for sign-in (Google Cloud → Credentials → OAuth client ID, type "Web application")
 SESSION_SECRET=...         # long random string that signs session cookies
+ANTHROPIC_API_KEY=...      # required for the assistant chat (console.anthropic.com)
 PORT=8787
 CACHE_TTL_MINUTES=360      # identical searches are cached in memory to save credits
 CORS_ORIGIN=*              # optional
@@ -32,6 +33,8 @@ The Vite dev server proxies `/api` to `http://localhost:8787`. Set `FAIRSHIFT_AP
 ```js
 import { authRouter, requireUser } from "./server/src/auth.js"
 import { serpRouter } from "./server/src/routes.js"
+import { assistantRouter } from "./server/src/assistant.js"
+app.use("/api", assistantRouter)
 app.use(express.json())
 app.use("/api", authRouter)   // /api/auth/*, /api/profile
 app.use("/api", serpRouter)   // /api/help, /api/jobs/compare, /api/meta
@@ -140,3 +143,26 @@ Yearly, monthly, weekly and daily pay are converted to hourly at 40 hours a week
 - Repeat searches are cached for 6 hours, and identical searches made at the same time share one request.
 
 Errors come back as `{ "error": "message" }`, with status 400 for bad input and 502 if SerpApi fails.
+
+## Assistant chat
+
+`POST /api/assistant/chat` (requires sign-in) runs the FairShift assistant on Claude Opus 5.5 (`claude-opus-5-5`). It explains pay stub photos line by line, answers wage questions in the worker's language, and uses four tools:
+
+| tool | what it does |
+|---|---|
+| `check_pay` | Federal minimum wage, overtime and tipped-wage math (`src/payrules.js`). The model is told never to do this math itself. |
+| `find_help` | Real legal aid, worker centers and consulates near the worker (the `/api/help` search) |
+| `find_jobs` | Real job posts and typical pay near the worker (the `/api/jobs/compare` search) |
+| `set_language` | Switches the reply language. It also switches the app's language when the app supports it. |
+
+The body is `{ conversationId?, message, image?: { mediaType, data }, mode?, replyLanguage?, speed?: "fast" | "careful" }`. `mode` is one of `ask`, `stub`, `pay`, `rights`, `claim` or `offer`. "Fast" runs at low effort and "Careful" at high effort, on the same model.
+
+The response is a server-sent event stream:
+
+- `conversation`: the conversation id
+- `text`: the full answer so far
+- `card`: a pay check, help or jobs result to display
+- `language`: the reply language changed
+- `done`, or `error` with a code: `refusal`, `rate_limited`, `not_configured`, `unavailable` or `error`
+
+Conversations are stored on the server in memory for 6 hours and are append-only. A turn is saved only after it completes, because Claude Opus 5.5 ties its thinking to the exact history. Don't rebuild history on the client. If the model declines a request, the API retries it on a recommended fallback model (`fallbacks: "default"`). Each user can send 40 messages per 15 minutes.

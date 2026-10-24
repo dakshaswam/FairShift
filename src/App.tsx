@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import { getCurrentUser, saveProfile, signOut, type User } from "./api"
+import { Assistant } from "./components/Assistant"
+import type { AssistantMode } from "./components/assistantStrings"
 import { GoogleSignIn } from "./components/GoogleSignIn"
 import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
@@ -86,6 +88,9 @@ function Icon({
   )
 }
 
+const PAY_SUMMARY =
+  "I found a possible overtime issue. You worked 44 hours, but all 44 were paid at your regular $18 rate."
+
 const navItems: { id: string; label: string; icon: IconName }[] = [
   { id: "home", label: "Home", icon: "home" },
   { id: "shifts", label: "My shifts", icon: "clock" },
@@ -104,11 +109,7 @@ export default function App() {
   const [clockedIn, setClockedIn] = useState(false)
   const [drawer, setDrawer] =
     useState<"stub" | "claim" | "lawyer" | "jobs" | null>(null)
-  const [message, setMessage] = useState("")
-  const [listening, setListening] = useState(false)
-  const [messages, setMessages] = useState([
-    "I found a possible overtime issue. You worked 44 hours, but all 44 were paid at your regular $18 rate.",
-  ])
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>("stub")
 
   const profile = user?.profile
   const firstName = user?.name.split(" ")[0] ?? ""
@@ -159,38 +160,9 @@ export default function App() {
     }
   }
 
-  const listen = () => {
-    const SpeechRecognition = (window as unknown as {
-      webkitSpeechRecognition?: new () => any
-    }).webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setMessage("Voice input is not supported in this browser.")
-      return
-    }
-    const recognition = new SpeechRecognition()
-    recognition.lang =
-      language === "Español"
-        ? "es-US"
-        : language === "हिन्दी"
-          ? "hi-IN"
-          : language === "Tiếng Việt"
-            ? "vi-VN"
-            : "en-US"
-    recognition.onstart = () => setListening(true)
-    recognition.onend = () => setListening(false)
-    recognition.onresult = (event: any) =>
-      setMessage(event.results[0][0].transcript)
-    recognition.start()
-  }
-
-  const sendMessage = () => {
-    if (!message.trim()) return
-    setMessages((current) => [
-      ...current,
-      `You: ${message}`,
-      "FairShift: Based on this stub, the clearest issue is unpaid overtime. You may be owed $86.40. I can explain the calculation or help you start a claim.",
-    ])
-    setMessage("")
+  const openAssistant = (mode: AssistantMode) => {
+    setAssistantMode(mode)
+    setDrawer("stub")
   }
 
   if (authStep === "loading") {
@@ -502,7 +474,7 @@ export default function App() {
                 </div>
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   <button
-                    onClick={() => setDrawer("stub")}
+                    onClick={() => openAssistant("stub")}
                     className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700">
@@ -539,7 +511,7 @@ export default function App() {
                         <Icon name="volume" />
                       </span>
                       <button
-                        onClick={() => speak(messages[0])}
+                        onClick={() => speak(PAY_SUMMARY)}
                         aria-label="Play pay explanation"
                         className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold"
                       >
@@ -700,7 +672,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setDrawer("stub")}
+                  onClick={() => openAssistant("stub")}
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-bold text-white"
                 >
                   Check a new pay stub
@@ -742,7 +714,7 @@ export default function App() {
                 ].map(([date, amount, hours, status]) => (
                   <button
                     key={date}
-                    onClick={() => setDrawer("stub")}
+                    onClick={() => openAssistant("stub")}
                     className="grid w-full grid-cols-2 gap-3 border-b border-slate-100 p-5 text-left last:border-0 sm:grid-cols-4 sm:items-center"
                   >
                     <span className="font-bold">{date}</span>
@@ -869,7 +841,9 @@ export default function App() {
           onClick={() => setDrawer(null)}
         >
           <aside
-            className="flex h-full w-full max-w-lg flex-col bg-white shadow-2xl"
+            className={`flex h-full w-full flex-col bg-white shadow-2xl ${
+              drawer === "stub" ? "max-w-2xl" : "max-w-lg"
+            }`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
@@ -879,7 +853,7 @@ export default function App() {
                 </p>
                 <h2 className="mt-1 text-xl font-bold">
                   {drawer === "stub"
-                    ? "Check your pay stub"
+                    ? "Ask about your pay"
                     : drawer === "claim"
                       ? "Start a wage claim"
                       : drawer === "lawyer"
@@ -897,87 +871,11 @@ export default function App() {
             </div>
 
             {drawer === "stub" && (
-              <>
-                <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                  <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                    <Icon
-                      name="camera"
-                      className="mx-auto size-7 text-emerald-700"
-                    />
-                    <span className="mt-2 block font-bold">
-                      Upload or take a pay stub photo
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500">
-                      JPG, PNG or PDF · Demo analysis appears instantly
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="sr-only"
-                      onChange={() =>
-                        setMessages([
-                          "I read your pay stub from Sunbright Cafe. You worked 44 hours at $18/hour, but overtime was not added.",
-                          "FairShift: Estimated amount owed: $86.40. Ask me anything about this check.",
-                        ])
-                      }
-                    />
-                  </label>
-                  {messages.map((item, index) => (
-                    <div
-                      key={index}
-                      className={`max-w-[90%] rounded-2xl p-4 text-sm leading-relaxed ${
-                        item.startsWith("You:")
-                          ? "ml-auto bg-emerald-700 text-white"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {item}
-                      {!item.startsWith("You:") && (
-                        <button
-                          onClick={() => speak(item)}
-                          className="mt-3 flex items-center gap-1 text-xs font-bold text-emerald-700"
-                        >
-                          <Icon name="volume" className="size-4" /> Listen
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-slate-200 p-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={listen}
-                      className={`grid size-12 shrink-0 place-items-center rounded-xl font-bold ${
-                        listening
-                          ? "bg-rose-600 text-white"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                      aria-label="Voice input"
-                    >
-                      {listening ? "•••" : "Mic"}
-                    </button>
-                    <input
-                      value={message}
-                      onChange={(event) => setMessage(event.target.value)}
-                      onKeyDown={(event) =>
-                        event.key === "Enter" && sendMessage()
-                      }
-                      placeholder={`Ask in ${language}…`}
-                      className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 outline-none focus:border-emerald-700"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      className="rounded-xl bg-emerald-700 px-4 font-bold text-white"
-                    >
-                      Send
-                    </button>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Voice uses your browser’s speech recognition. Translation
-                    and analysis are demo responses.
-                  </p>
-                </div>
-              </>
+              <Assistant
+                language={language}
+                initialMode={assistantMode}
+                onLanguageChange={changeLanguage}
+              />
             )}
 
             {drawer === "claim" && (
@@ -1019,6 +917,12 @@ export default function App() {
                   className="mt-8 w-full rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white"
                 >
                   Review and request claim
+                </button>
+                <button
+                  onClick={() => openAssistant("claim")}
+                  className="mt-3 w-full rounded-xl border border-slate-300 px-5 py-4 font-bold"
+                >
+                  Write my claim summary with the assistant
                 </button>
                 <button
                   onClick={() => setDrawer("lawyer")}

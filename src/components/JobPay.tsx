@@ -200,7 +200,7 @@ export function JobPay({
   )
 }
 
-function PayRange({
+export function PayRange({
   stats,
   wage,
 }: {
@@ -263,7 +263,7 @@ function PayRange({
   )
 }
 
-function JobCard({ job }: { job: Job }) {
+export function JobCard({ job }: { job: Job }) {
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">

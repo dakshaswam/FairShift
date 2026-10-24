@@ -19,7 +19,7 @@ const tabs: { id: HelpCategory; label: string; hint: string }[] = [
   },
 ]
 
-const languageNames: Record<string, string> = {
+export const languageNames: Record<string, string> = {
   Español: "Spanish",
   हिन्दी: "Hindi",
   "Tiếng Việt": "Vietnamese",
@@ -234,7 +234,7 @@ export function LocalHelp({
   )
 }
 
-function PlaceCard({
+export function PlaceCard({
   place,
   languageName,
 }: {
