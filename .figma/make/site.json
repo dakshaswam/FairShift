@@ -1,0 +1,10 @@
+{
+  "description": "Helps immigrant and limited-English workers track shifts, understand pay stubs, spot wage violations, and prepare claims with local support.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
