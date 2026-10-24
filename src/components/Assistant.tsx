@@ -198,7 +198,7 @@ export function Assistant({
   useEffect(
     () => () => {
       controllerRef.current?.abort()
-      recognizerRef.current?.stop()
+      stopMic()
       window.speechSynthesis?.cancel()
       if (pendingRef.current.length) {
         saved.items = saved.items.filter((item) => !pendingRef.current.includes(item.id))
@@ -213,6 +213,23 @@ export function Assistant({
     el.style.height = "auto"
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
   }, [input])
+
+  // Stop voice typing without letting it refill the box: Chrome delivers one last
+  // result after stop(), which would put the sent message back.
+  const stopMic = () => {
+    const recognizer = recognizerRef.current
+    if (!recognizer) return
+    recognizer.onresult = () => {}
+    recognizer.stop()
+  }
+
+  // Clear the box. Blurring first ends any keyboard composition (Korean, Japanese,
+  // Chinese and phone keyboards), which could otherwise re-insert its last word.
+  const clearInput = () => {
+    const box = inputRef.current
+    if (box && document.activeElement === box) box.blur()
+    setInput("")
+  }
 
   const stopSpeaking = () => {
     window.speechSynthesis?.cancel()
@@ -309,7 +326,7 @@ export function Assistant({
     if (!text) return
 
     stopSpeaking()
-    recognizerRef.current?.stop()
+    stopMic()
     setVoiceNote("")
 
     const userId = uid()
@@ -320,7 +337,7 @@ export function Assistant({
       { id: userId, role: "user", text },
       { id: botId, role: "bot", text: "", cards: [], status: "streaming" },
     ])
-    setInput("")
+    clearInput()
 
     const updateBot = (change: (bot: BotItem) => BotItem) =>
       setItems((current) =>
@@ -404,6 +421,7 @@ export function Assistant({
   const uploadPaystub = async (file: File | undefined) => {
     if (!file || busy) return
     stopSpeaking()
+    stopMic()
     const userId = uid()
     const botId = uid()
     setMode("stub")
