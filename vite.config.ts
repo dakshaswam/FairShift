@@ -38,6 +38,7 @@ react(),
       strictPort: true,
       // FairShift API (server/) — SerpApi help finder and job pay comparison
       proxy: {
+        '/api/paystubs': process.env.FAIRSHIFT_PAYSTUB_URL || 'http://127.0.0.1:8790',
         '/api': process.env.FAIRSHIFT_API_URL || 'http://localhost:8787',
       },
       watch: {

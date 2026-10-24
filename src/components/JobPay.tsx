@@ -10,7 +10,7 @@ const verdictStyle = {
 }
 
 const verdictLabel = {
-  below_market: "You may be underpaid",
+  below_market: "Below advertised market pay",
   at_market: "Your pay is typical",
   above_market: "You're paid above most",
 }
@@ -31,7 +31,7 @@ export function JobPay({
 }) {
   const [jobTitle, setJobTitle] = useState(defaultJobTitle)
   const [location, setLocation] = useState(defaultLocation)
-  const [wage, setWage] = useState(defaultWage ? String(defaultWage) : "")
+  const [wage, setWage] = useState(defaultWage === undefined ? "" : String(defaultWage))
   const [data, setData] = useState<JobsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")

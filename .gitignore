@@ -3,6 +3,7 @@ dist/
 build/
 .cache/
 .env*
+!.env.example
 .vite/
 vite.config.*.timestamp-*
 *.tsbuildinfo
@@ -22,3 +23,30 @@ logs/
 
 # Local user store (server/data/users.json)
 /server/data/
+
+# FairShift Python environment and private local inputs/results.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+/private_inputs/
+/outputs/
+.tools/
+/result*.json
+# Real payroll documents must never enter Git. Only fictional fixtures are allowed.
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.bmp
+*.webp
+!/samples/sample_paystub.pdf
+!/samples/sample_paystub.png
+!/samples/current_upload.pdf
+!/samples/current_upload.png
+!/samples/current_upload_scanned.pdf
