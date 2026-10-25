@@ -38,11 +38,8 @@ app.get("/api/health", (_req, res) => {
 
 // How fast OCR starts and reads on this machine (e.g. a cold Vercel function).
 app.get("/api/health/ocr", async (_req, res) => {
-  try {
-    res.json({ ok: true, ...(await ocrSelfTest()) })
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message })
-  }
+  const result = await ocrSelfTest()
+  res.status(result.ok ? 200 : 500).json(result)
 })
 
 app.use("/api", authRouter)

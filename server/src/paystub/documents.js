@@ -1,7 +1,7 @@
 // Read a pay stub's text on the server, in memory. No temporary files.
 // Port of fairshift_paystub/documents.py: text PDFs are read directly, photos and
 // scanned PDF pages go through OCR. Tesseract runs as WebAssembly (tesseract.js)
-// with the English data shipped in node_modules, so it works on Vercel as-is.
+// with the English data shipped in node_modules, so it runs on Vercel too.
 
 import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
@@ -24,12 +24,29 @@ const PDF_RENDER_SCALE = 300 / 72
 const IMAGE_SUFFIXES = new Set([".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"])
 
 const require = createRequire(import.meta.url)
-const LANG_PATH = path.join(path.dirname(require.resolve("@tesseract.js-data/eng/package.json")), "4.0.0_best_int")
-// The English data ships in node_modules. If a deployment bundler left it out,
-// tesseract.js downloads the same file once into /tmp (the only writable place
-// in a serverless function) instead of failing.
-const LANGUAGE_OPTIONS = existsSync(path.join(LANG_PATH, "eng.traineddata.gz"))
-  ? { langPath: LANG_PATH, gzip: true, cacheMethod: "none" }
+
+// tesseract.js starts its engine from a separate worker file, and that worker
+// loads the WebAssembly engine and the language data by paths built at run time.
+// Deployment bundlers (Vercel's file tracing) can't see those, so every file is
+// named here with require.resolve, which they do follow. All three engine builds
+// are listed because the worker picks one by the CPU's WebAssembly features.
+const OCR_FILES = {
+  worker: require.resolve("tesseract.js/src/worker-script/node/index.js"),
+  engines: [
+    require.resolve("tesseract.js-core/tesseract-core-relaxedsimd-lstm.js"),
+    require.resolve("tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm"),
+    require.resolve("tesseract.js-core/tesseract-core-simd-lstm.js"),
+    require.resolve("tesseract.js-core/tesseract-core-simd-lstm.wasm"),
+    require.resolve("tesseract.js-core/tesseract-core-lstm.js"),
+    require.resolve("tesseract.js-core/tesseract-core-lstm.wasm"),
+  ],
+  english: require.resolve("@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz"),
+}
+const missingOcrFiles = () => [OCR_FILES.worker, ...OCR_FILES.engines, OCR_FILES.english].filter((file) => !existsSync(file))
+// If the bundled English data is missing anyway, tesseract.js downloads the same
+// file once into /tmp (the only writable place in a serverless function).
+const LANGUAGE_OPTIONS = existsSync(OCR_FILES.english)
+  ? { langPath: path.dirname(OCR_FILES.english), gzip: true, cacheMethod: "none" }
   : { cachePath: path.join(os.tmpdir(), "fairshift-tesseract") }
 
 function checkTextSize(text) {
@@ -38,27 +55,45 @@ function checkTextSize(text) {
 }
 
 // One OCR worker per warm server instance; recreated if a job fails or times out.
+// tesseract.js doesn't surface a worker that fails to start in Node (it would
+// just wait), so the worker file is checked first.
 let workerPromise = null
 function ocrWorker() {
   workerPromise ??= (async () => {
-    const worker = await createWorker("eng", 1, LANGUAGE_OPTIONS)
+    if (!existsSync(OCR_FILES.worker)) throw new DocumentError("The OCR engine is missing from this server. Try a PDF instead.")
+    const worker = await createWorker("eng", 1, { ...LANGUAGE_OPTIONS, workerPath: OCR_FILES.worker })
     await worker.setParameters({ tessedit_pageseg_mode: "3", user_defined_dpi: "300" })
     return worker
   })()
+  workerPromise.catch(() => {
+    workerPromise = null
+  })
   return workerPromise
 }
 // Stops the OCR worker thread so a script or test process can exit.
 export const closeOcr = () => resetWorker()
 
-// For GET /api/health/ocr: how long the OCR engine takes to start and to read a
-// small blank page on this machine. No document is involved.
+// For GET /api/health/ocr: which OCR files this server has, and how long the
+// engine takes to start and read a small blank page. No document is involved.
 export async function ocrSelfTest() {
+  const missing = missingOcrFiles().map((file) => path.relative(process.cwd(), file))
   const started = Date.now()
-  const worker = await ocrWorker()
-  const ready = Date.now()
-  const blank = await sharp({ create: { width: 400, height: 120, channels: 3, background: "#ffffff" } }).png().toBuffer()
-  await worker.recognize(blank)
-  return { languageDataBundled: LANGUAGE_OPTIONS.langPath !== undefined, startMs: ready - started, readMs: Date.now() - ready }
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("OCR engine did not start within 25 s")), 25_000)
+  })
+  try {
+    const worker = await Promise.race([ocrWorker(), timeout])
+    const ready = Date.now()
+    const blank = await sharp({ create: { width: 400, height: 120, channels: 3, background: "#ffffff" } }).png().toBuffer()
+    await Promise.race([worker.recognize(blank), timeout])
+    return { ok: true, missing, languageDataBundled: LANGUAGE_OPTIONS.langPath !== undefined, startMs: ready - started, readMs: Date.now() - ready }
+  } catch (error) {
+    await resetWorker()
+    return { ok: false, missing, error: error.message, afterMs: Date.now() - started }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function resetWorker() {
