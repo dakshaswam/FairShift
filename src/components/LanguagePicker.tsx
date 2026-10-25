@@ -8,15 +8,12 @@ import { LANGUAGE_OPTIONS, useT } from "../i18n"
 export function LanguagePicker({
   language,
   onChange,
-  openOnMount = false,
 }: {
   language: string
   onChange: (language: string) => void
-  // Open the panel as soon as it appears, so the first thing a worker does is pick a language.
-  openOnMount?: boolean
 }) {
   const t = useT()
-  const [open, setOpen] = useState(openOnMount)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
