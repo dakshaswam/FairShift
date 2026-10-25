@@ -6,6 +6,7 @@ import { assistantRouter } from "./assistant.js"
 import { authRouter } from "./auth.js"
 import { serpRouter } from "./routes.js"
 import { supabase } from "./db.js"
+import { ocrSelfTest } from "./paystub/documents.js"
 import { uploadsRouter } from "./uploads-route.js"
 
 const app = express()
@@ -33,6 +34,15 @@ app.get("/api/health", (_req, res) => {
     assistantConfigured: Boolean(process.env.MUSE_API_KEY),
     database: supabase ? "supabase" : "local files",
   })
+})
+
+// How fast OCR starts and reads on this machine (e.g. a cold Vercel function).
+app.get("/api/health/ocr", async (_req, res) => {
+  try {
+    res.json({ ok: true, ...(await ocrSelfTest()) })
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message })
+  }
 })
 
 app.use("/api", authRouter)

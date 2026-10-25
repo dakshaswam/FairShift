@@ -4,6 +4,8 @@
 // paystub service instead.
 //
 //   POST   /api/uploads             raw file body → processed result + saved entry
+//                                    (with Accept: application/x-ndjson, one JSON line per
+//                                    step, {"stage"}, then {"result"} or {"error"})
 //   GET    /api/uploads             the worker's uploads, newest first
 //   GET    /api/uploads/:id         one upload with all extracted fields
 //   GET    /api/uploads/:id/file    the original photo or PDF
@@ -29,6 +31,7 @@ uploadsRouter.post(
   requireUser,
   express.raw({ type: () => true, limit: "30mb" }),
   async (req, res, next) => {
+    let streaming = false
     try {
       const extension = String(req.headers["x-document-type"] ?? "").toLowerCase()
       const contentType = TYPES[extension]
@@ -37,17 +40,27 @@ uploadsRouter.post(
       }
       const language = String(req.headers["x-fairshift-language"] ?? "English")
 
+      // Live progress: the status line is sent now, so any later error goes in the body.
+      streaming = String(req.headers.accept ?? "").includes("application/x-ndjson")
+      const send = (event) => res.write(`${JSON.stringify(event)}\n`)
+      if (streaming) {
+        res.status(200).setHeader("Content-Type", "application/x-ndjson; charset=utf-8")
+        res.setHeader("Cache-Control", "no-store")
+        res.flushHeaders()
+      }
+      const fail = (status, body) => (streaming ? res.end(`${JSON.stringify({ ...body, status })}\n`) : res.status(status).json(body))
+
       let result
       if (PAYSTUB_URL) {
         const forwarded = await forwardToPython(req.body, contentType, extension, language)
-        if (!forwarded.ok) return res.status(forwarded.status).json(forwarded.body)
+        if (!forwarded.ok) return fail(forwarded.status, forwarded.body)
         result = forwarded.body
       } else {
         try {
-          result = await processDocument(req.body, extension, language)
+          result = await processDocument(req.body, extension, language, (stage) => streaming && send({ stage }))
         } catch (error) {
           if (!(error instanceof FairShiftError)) throw error
-          return res.status(error.status).json({ error: error.message, stage: error.stage })
+          return fail(error.status, { error: error.message, stage: error.stage })
         }
       }
 
@@ -71,9 +84,12 @@ uploadsRouter.post(
         // The worker still gets their result; it just isn't in the history.
         console.error("Saving upload failed:", error.message)
       }
-      res.json({ ...result, upload })
+      if (streaming) res.end(`${JSON.stringify({ result: { ...result, upload } })}\n`)
+      else res.json({ ...result, upload })
     } catch (error) {
-      next(error)
+      if (!streaming || !res.headersSent) return next(error)
+      console.error(error)
+      res.end(`${JSON.stringify({ error: "Paystub processing failed. Try the upload again.", stage: "request", status: 500 })}\n`)
     }
   },
 )

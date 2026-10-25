@@ -90,24 +90,28 @@ function assumeUsd(stub) {
   return { ...stub, currency: "USD", warnings: [ASSUMED_USD, ...notes] }
 }
 
-async function prepare(bytes, suffix) {
+async function read(bytes, suffix) {
   try {
     const raw = cleanExtracted(await extractBytes(bytes, suffix))
     safeText(raw)
-    const redacted = redactText(raw)
-    safeText(redacted)
-    return redacted
+    return raw
   } catch (error) {
     if (error instanceof FairShiftError) throw error
     throw new RedactionError("Upload preparation failed; nothing was sent to Muse. Try the upload again.")
   }
 }
 
+function mask(raw) {
+  const redacted = redactText(raw)
+  safeText(redacted)
+  return redacted
+}
+
 // Send redacted text to Muse with no manual approval step. If the outbound
 // privacy check still finds a possible identifier, the text is redacted again
 // and re-checked, up to twice; after that it is sent anyway ("forced"), since by
 // then what remains is almost always a false alarm such as a field label.
-async function autoSend(redacted) {
+async function autoSend(redacted, onReply = () => {}) {
   let text = redacted
   safeText(text)
   let retries = 0
@@ -128,14 +132,32 @@ async function autoSend(redacted) {
     }
   }
   const response = await requestExtraction(text)
+  onReply()
   return { stub: validateResponse(response, text), sent: text, retries, forced }
 }
 
-// Same JSON as the Python service's POST /api/paystubs/process.
-export async function processDocument(bytes, suffix, language = "English") {
+// Same JSON as the Python service's POST /api/paystubs/process. onStage is told
+// when each step starts ("read", "mask", "extract", "check"), for live progress.
+export async function processDocument(bytes, suffix, language = "English", onStage = () => {}) {
+  const started = Date.now()
+  const timings = {}
+  let current = null
+  let last = started
+  // Records how long the previous step took, then announces the next one.
+  const stage = (name) => {
+    const now = Date.now()
+    if (current) timings[current] = now - last
+    current = name
+    last = now
+    onStage(name)
+  }
   try {
-    const redacted = await prepare(bytes, suffix)
-    const { stub, sent, retries, forced } = await autoSend(redacted)
+    stage("read")
+    const raw = await read(bytes, suffix)
+    stage("mask")
+    const redacted = mask(raw)
+    stage("extract")
+    const { stub, sent, retries, forced } = await autoSend(redacted, () => stage("check"))
     let message = buildResponse(stub)
     // Checks ran on English text; the worker reads it in their own language.
     let notes = [...stub.warnings]
@@ -147,6 +169,10 @@ export async function processDocument(bytes, suffix, language = "English") {
         console.warn("Display translation failed; showing English.")
       }
     }
+    timings[current] = Date.now() - last
+    timings.total = Date.now() - started
+    // Durations only, never document content.
+    console.info("Paystub timings (ms):", JSON.stringify(timings))
     const mode = forced ? "forced" : retries ? "re-redacted" : "clean"
     return {
       upload_id: randomBytes(24).toString("base64url"),

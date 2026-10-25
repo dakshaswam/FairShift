@@ -50,6 +50,17 @@ function ocrWorker() {
 // Stops the OCR worker thread so a script or test process can exit.
 export const closeOcr = () => resetWorker()
 
+// For GET /api/health/ocr: how long the OCR engine takes to start and to read a
+// small blank page on this machine. No document is involved.
+export async function ocrSelfTest() {
+  const started = Date.now()
+  const worker = await ocrWorker()
+  const ready = Date.now()
+  const blank = await sharp({ create: { width: 400, height: 120, channels: 3, background: "#ffffff" } }).png().toBuffer()
+  await worker.recognize(blank)
+  return { languageDataBundled: LANGUAGE_OPTIONS.langPath !== undefined, startMs: ready - started, readMs: Date.now() - ready }
+}
+
 async function resetWorker() {
   const pending = workerPromise
   workerPromise = null
@@ -116,12 +127,11 @@ async function ocrImage(image) {
   }
   let timer
   try {
-    const worker = await ocrWorker()
-    const job = worker.recognize(png)
     const timeout = new Promise((_, reject) => {
       timer = setTimeout(() => reject(new DocumentError("OCR timed out. Try a smaller, clearer image.")), OCR_TIMEOUT_MS)
     })
-    const { data } = await Promise.race([job, timeout])
+    // Starting the OCR engine is inside the time limit too, so a stalled start fails fast.
+    const { data } = await Promise.race([ocrWorker().then((worker) => worker.recognize(png)), timeout])
     const text = data.text.trim()
     if (!text) throw new DocumentError("OCR found no readable text. Try a clearer image.")
     return checkTextSize(text)

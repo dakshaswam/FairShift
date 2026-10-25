@@ -164,20 +164,51 @@ async function shrinkForUpload(file: File, extension: string): Promise<{ body: B
   return { body: blob, extension: ".jpg", name: file.name.replace(/\.[^.]+$/, "") + ".jpg" }
 }
 
+export type PaystubStage = "read" | "mask" | "extract" | "check"
+
+// The server's streamed reply: one JSON line per step, then the result or an error.
+async function readProgress(response: Response, onStage?: (stage: PaystubStage) => void) {
+  const reader = response.body!.pipeThrough(new TextDecoderStream()).getReader()
+  let buffer = ""
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (value) buffer += value
+    const lines = buffer.split("\n")
+    buffer = done ? "" : lines.pop()!
+    for (const line of lines.filter((text) => text.trim())) {
+      const event = JSON.parse(line)
+      if (event.stage && !event.error) onStage?.(event.stage)
+      if (event.error) {
+        const known = ["request", "local_text_extraction", "redaction", "model", "validation"]
+        throw new PaystubRequestError(String(event.error), known.includes(event.stage) ? event.stage : "request")
+      }
+      if (event.result) return event.result
+    }
+    if (done) throw new Error("The paystub service returned an unreadable response.")
+  }
+}
+
 // One request to the FairShift server: it reads the document (OCR and redaction),
 // sends the redacted text to Muse, and saves the file and the result to the
-// worker's upload history. The response includes the exact text sent.
-export async function processPaystub(file: File, signal: AbortSignal, language = "English"): Promise<ProcessedPaystub> {
+// worker's upload history. onStage hears each step as the server starts it.
+// The response includes the exact text sent.
+export async function processPaystub(
+  file: File,
+  signal: AbortSignal,
+  language = "English",
+  onStage?: (stage: PaystubStage) => void,
+): Promise<ProcessedPaystub> {
   const original = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
   if (![".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"].includes(original)) {
     throw new Error("Choose a PDF, PNG, JPEG, TIFF, BMP or WebP paystub.")
   }
   const { body, extension, name } = await shrinkForUpload(file, original)
-  const data = await responseData(await fetch("/api/uploads", {
+  const response = await fetch("/api/uploads", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       ...HEADERS,
+      Accept: "application/x-ndjson, application/json",
       "Content-Type": body.type || file.type || "application/octet-stream",
       "X-Document-Type": extension,
       "X-FairShift-Language": language,
@@ -185,7 +216,9 @@ export async function processPaystub(file: File, signal: AbortSignal, language =
     },
     body,
     signal,
-  }))
+  })
+  const streamed = (response.headers.get("Content-Type") ?? "").includes("application/x-ndjson")
+  const data = streamed ? await readProgress(response, onStage) : await responseData(response)
   if (!["muse_live", "mocked"].includes(data.source) || !data.paystub || typeof data.assistant_message !== "string"
       || typeof data.sent_text !== "string" || !Array.isArray(data.trace)) {
     throw new Error("The paystub result was incomplete. Choose the document again.")

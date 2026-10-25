@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react"
 import { languageName, useT } from "../i18n"
-import { processPaystub, type PaystubResult } from "../paystub-api"
+import { processPaystub, type PaystubResult, type PaystubStage } from "../paystub-api"
 import type { Page } from "../route"
 import { Button, Card, Icon, Note, PageHeader, Pill } from "../ui"
 
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"
 
-// The service does everything in one request, so the steps advance on a timer
-// while it works and all complete when the result arrives.
-const STEP_MS = [1200, 2600, 5200]
+// The server reports each step as it starts it; the list follows along.
+const STEP_INDEX: Record<PaystubStage, number> = { read: 0, mask: 1, extract: 2, check: 3 }
 
 export function UploadPage({
   language,
@@ -28,16 +27,8 @@ export function UploadPage({
   const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const controller = useRef<AbortController | null>(null)
-  const timers = useRef<number[]>([])
 
-  const clearTimers = () => {
-    timers.current.forEach((id) => window.clearTimeout(id))
-    timers.current = []
-  }
-  useEffect(() => () => {
-    clearTimers()
-    controller.current?.abort()
-  }, [])
+  useEffect(() => () => controller.current?.abort(), [])
 
   const steps = [
     { title: t("Read document text"), active: t("Reading the text on this computer"), done: t("Local reading complete") },
@@ -48,22 +39,20 @@ export function UploadPage({
 
   const upload = async (file: File | undefined) => {
     if (!file) return
-    clearTimers()
     controller.current?.abort()
     const active = new AbortController()
     controller.current = active
     setError("")
     setStep(0)
     setState("processing")
-    timers.current = STEP_MS.map((ms, index) => window.setTimeout(() => setStep(index + 1), ms))
     try {
-      const result = await processPaystub(file, active.signal, languageName(language))
-      clearTimers()
+      const result = await processPaystub(file, active.signal, languageName(language), (stage) => {
+        if (!active.signal.aborted) setStep(STEP_INDEX[stage])
+      })
       setStep(4)
       onResult(result)
       window.setTimeout(() => go("pay"), 600)
     } catch (reason) {
-      clearTimers()
       if (active.signal.aborted) return setState("idle")
       setError(reason instanceof Error ? reason.message : "")
       setState("error")
@@ -72,7 +61,6 @@ export function UploadPage({
 
   const cancel = () => {
     controller.current?.abort()
-    clearTimers()
     setState("idle")
   }
 

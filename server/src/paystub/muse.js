@@ -121,8 +121,9 @@ export function requestExtraction(text) {
       { role: "user", content: text },
     ],
     response_format: { type: "json_schema", json_schema: { name: "paystub_extraction", strict: true, schema: EXTRACTION_SCHEMA } },
-    // Muse reasons before answering; leave room for both.
-    reasoning_effort: "medium",
+    // Muse reasons before answering; leave room for both. "low" was as accurate
+    // as "medium" on the sample stubs and about a second and a half faster.
+    reasoning_effort: "low",
     max_tokens: 16000,
   })
 }
