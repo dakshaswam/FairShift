@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { LANGUAGE_OPTIONS, useT } from "../i18n"
 
 // A button that opens a centered panel with every language, each written in its own
-// language so a worker can find theirs without reading English.
+// language so a worker can find theirs without reading English. The panel is portaled
+// to <body> so a blurred sticky header can't trap its fixed positioning.
 export function LanguagePicker({
   language,
   onChange,
+  openOnMount = false,
 }: {
   language: string
   onChange: (language: string) => void
+  // Open the panel as soon as it appears, so the first thing a worker does is pick a language.
+  openOnMount?: boolean
 }) {
   const t = useT()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(openOnMount)
 
   useEffect(() => {
     if (!open) return
@@ -60,9 +65,9 @@ export function LanguagePicker({
         </svg>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-5"
+          className="fixed inset-0 z-50 grid animate-fade place-items-center bg-slate-950/40 p-4"
           onClick={() => setOpen(false)}
         >
           <div
@@ -70,7 +75,7 @@ export function LanguagePicker({
             aria-modal="true"
             aria-label={t("Choose your language")}
             onClick={(event) => event.stopPropagation()}
-            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-5 text-slate-950 shadow-2xl sm:p-6"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl animate-rise overflow-y-auto overscroll-contain rounded-3xl bg-white p-5 text-slate-950 shadow-2xl sm:p-6"
           >
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-lg font-bold">{t("Choose your language")}</h2>
@@ -83,7 +88,7 @@ export function LanguagePicker({
                 ×
               </button>
             </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {LANGUAGE_OPTIONS.map((option) => {
                 const selected = option.label === language
                 return (
@@ -96,14 +101,14 @@ export function LanguagePicker({
                       onChange(option.label)
                       setOpen(false)
                     }}
-                    className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-start transition ${
+                    className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-start transition ${
                       selected
                         ? "border-emerald-700 bg-emerald-50 text-emerald-900"
                         : "border-slate-200 hover:border-slate-400"
                     }`}
                   >
                     <span>
-                      <span className="block text-lg font-bold">
+                      <span className="block text-base font-bold sm:text-lg">
                         {option.label}
                       </span>
                       {t(option.name).toLowerCase() !==
@@ -132,7 +137,8 @@ export function LanguagePicker({
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

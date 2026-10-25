@@ -5,7 +5,7 @@ import type { AssistantMode } from "./components/assistantStrings"
 import { GoogleSignIn } from "./components/GoogleSignIn"
 import { LanguagePicker } from "./components/LanguagePicker"
 import { OccupationStep } from "./components/OccupationStep"
-import { I18nProvider, LANGUAGE_OPTIONS, languageDir, speechLang, tk, translator, useT } from "./i18n"
+import { I18nProvider, languageDir, speechLang, tk, translator, useT } from "./i18n"
 import { AssistantPage } from "./pages/AssistantPage"
 import { ClaimPage, HelpPage, JobsPage, LocalHelpPage } from "./pages/HelpPages"
 import { HomePage } from "./pages/HomePage"
@@ -14,7 +14,7 @@ import { UploadPage } from "./pages/UploadPage"
 import type { PaystubResult, ProcessedPaystub, UploadSummary } from "./paystub-api"
 import { useRoute, type Page } from "./route"
 import { Shell } from "./Shell"
-import { Button, Icon } from "./ui"
+import { Icon } from "./ui"
 
 // What the assistant should do when it next opens.
 export type AssistantRequest = { mode: AssistantMode; question?: string; upload?: boolean; id: number }
@@ -51,7 +51,7 @@ function LoginScreen({ language, onLanguage, onSignedIn }: { language: string; o
       </section>
       <section className="relative flex items-center bg-paper px-8 py-16 sm:px-16">
         <div className="absolute end-6 top-6">
-          <LanguagePicker language={language} onChange={onLanguage} />
+          <LanguagePicker language={language} onChange={onLanguage} openOnMount />
         </div>
         <div className="w-full max-w-md animate-rise">
           <p className="text-xs font-bold uppercase tracking-wide text-pine">{t("WELCOME TO FAIRSHIFT")}</p>
@@ -73,49 +73,16 @@ function LoginScreen({ language, onLanguage, onSignedIn }: { language: string; o
   )
 }
 
-function LanguageStep({ language, setLanguage, onContinue }: { language: string; setLanguage: (value: string) => void; onContinue: () => void }) {
-  const t = useT()
-  return (
-    <div className="grid min-h-screen place-items-center bg-paper px-5 py-12">
-      <main className="w-full max-w-3xl animate-rise">
-        <p className="text-xs font-bold uppercase tracking-wide text-pine">{t("WELCOME TO FAIRSHIFT")}</p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight">{t("Which language feels best?")}</h1>
-        <p className="mt-3 text-muted">{t("You can change this anytime. Pay explanations and voice input will use this language.")}</p>
-        <div className="stagger mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {LANGUAGE_OPTIONS.map((option) => {
-            const selected = language === option.label
-            return (
-              <button
-                key={option.label}
-                lang={option.speech.split("-")[0]}
-                onClick={() => setLanguage(option.label)}
-                aria-pressed={selected}
-                className={`lift flex items-center justify-between rounded-xl border px-5 py-4 text-start text-lg font-bold ${
-                  selected ? "border-pine bg-mist" : "border-line bg-white"
-                }`}
-              >
-                {option.label}
-                {selected && <Icon name="check" className="size-5 text-pine" />}
-              </button>
-            )
-          })}
-        </div>
-        <Button size="lg" onClick={onContinue} className="mt-8 w-full">
-          {t("Continue")}
-        </Button>
-      </main>
-    </div>
-  )
-}
-
 function AppInner({ language, setLanguage }: { language: string; setLanguage: (value: string) => void }) {
-  const [authStep, setAuthStep] = useState<"loading" | "login" | "language" | "occupation" | "editOccupation" | "app">("loading")
+  const [authStep, setAuthStep] = useState<"loading" | "login" | "occupation" | "editOccupation" | "app">("loading")
   const [user, setUser] = useState<User | null>(null)
   const [page, go] = useRoute()
   const [paystubResult, setPaystubResult] = useState<PaystubResult | null>(null)
   const [uploads, setUploads] = useState<UploadSummary[]>([])
   const [assistantRequest, setAssistantRequest] = useState<AssistantRequest | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // Set right after a sign-in so the language panel opens over Home (not on a page refresh).
+  const [askLanguage, setAskLanguage] = useState(false)
   const t = translator(language)
 
   // Keep <html lang> and text direction in sync (screen readers, fonts, Arabic and Urdu right-to-left).
@@ -150,13 +117,23 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
     if (result) void refreshUploads(false)
   }
 
-  // Returning workers go straight to the app; new ones pick a language and job first.
-  const enterApp = (signedIn: User) => {
+  // A returning worker's saved language (in Supabase) always wins over what was picked on the
+  // sign-in screen. A first-time worker keeps the sign-in screen's language; the job step saves it.
+  // The language panel opens again over Home after a fresh sign-in.
+  const enterApp = (signedIn: User, freshSignIn = false) => {
     setUser(signedIn)
-    if (signedIn.profile?.language) setLanguage(signedIn.profile.language)
-    setAuthStep(signedIn.profile?.occupation ? "app" : "language")
+    const saved = signedIn.profile?.language
+    if (saved) setLanguage(saved)
+    else if (signedIn.profile?.occupation) saveProfile({ language }).then(setUser).catch(() => {})
+    setAuthStep(signedIn.profile?.occupation ? "app" : "occupation")
+    setAskLanguage(freshSignIn)
     void refreshUploads(true)
   }
+
+  // The Shell reads askLanguage once when it mounts; clear it so it doesn't reopen later.
+  useEffect(() => {
+    if (authStep === "app" && askLanguage) setAskLanguage(false)
+  }, [authStep, askLanguage])
 
   useEffect(() => {
     getCurrentUser()
@@ -214,10 +191,7 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
     )
   }
   if (authStep === "login" || !user) {
-    return <LoginScreen language={language} onLanguage={setLanguage} onSignedIn={enterApp} />
-  }
-  if (authStep === "language") {
-    return <LanguageStep language={language} setLanguage={setLanguage} onContinue={() => setAuthStep("occupation")} />
+    return <LoginScreen language={language} onLanguage={setLanguage} onSignedIn={(signedIn) => enterApp(signedIn, true)} />
   }
   if (authStep === "occupation" || authStep === "editOccupation") {
     return (
@@ -344,6 +318,7 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
       onLanguage={changeLanguage}
       onEditJob={editJob}
       onSignOut={logOut}
+      askLanguage={askLanguage}
       floating={floating}
     >
       {pages[page]}

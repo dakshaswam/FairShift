@@ -90,6 +90,7 @@ export function Shell({
   onLanguage,
   onEditJob,
   onSignOut,
+  askLanguage,
   floating,
   children,
 }: {
@@ -101,6 +102,7 @@ export function Shell({
   onLanguage: (language: string) => void
   onEditJob: () => void
   onSignOut: () => void
+  askLanguage?: boolean
   floating?: ReactNode
   children: ReactNode
 }) {
@@ -162,7 +164,7 @@ export function Shell({
                 <Icon name="shield" className="size-3.5" />
                 {t("Saved to your account")}
               </span>
-              <LanguagePicker language={language} onChange={onLanguage} />
+              <LanguagePicker language={language} onChange={onLanguage} openOnMount={askLanguage} />
               <ProfileMenu user={user} onEditJob={onEditJob} onSignOut={onSignOut} />
             </div>
           </div>
