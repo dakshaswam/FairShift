@@ -57,7 +57,7 @@ Python 3.12 is recommended. Run these commands from the project root (the folder
 Windows PowerShell:
 
 ```powershell
-cd "$env:USERPROFILE\OneDrive\Desktop\HacTX"
+cd "$env:USERPROFILE\OneDrive\Desktop\FairShift"
 & "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe" -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -69,7 +69,7 @@ The Python path above is where Python was found on the development PC. On anothe
 macOS / Linux:
 
 ```bash
-cd /path/to/HacTX
+cd /path/to/FairShift
 python3.12 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/python -m pip install -r requirements-dev.txt
