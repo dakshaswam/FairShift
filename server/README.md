@@ -167,3 +167,21 @@ The response is a server-sent event stream:
 - `done`, or `error` with a code: `refusal`, `rate_limited`, `not_configured`, `unavailable` or `error`
 
 Conversations are stored on the server in memory for 6 hours. A turn is saved only after it completes, so an interrupted answer leaves no half-finished tool call in the history. Don't rebuild history on the client. Each user can send 40 messages per 15 minutes.
+
+## Database (Supabase)
+
+Profiles and pay stub uploads are stored in Supabase: the `profiles` and `paystub_uploads` tables, plus a private `paystubs` storage bucket for the original photos and PDFs.
+
+1. In your Supabase project, open **SQL Editor**, paste `server/supabase/schema.sql`, and run it.
+2. In `server/.env`, set `SUPABASE_URL` (`https://<project-ref>.supabase.co`) and `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API Keys). The service_role key is secret and is used only by this server.
+3. If you used the app before Supabase was set up, run `node --env-file=.env scripts/migrate-local-to-supabase.mjs` to copy your local users and uploads over.
+
+Without these two settings, the server saves to local files in `server/data` instead. `/api/health` reports which one it is using.
+
+| endpoint | |
+|---|---|
+| `POST /api/uploads` | raw file body, with `X-Document-Type` (`.pdf`, `.png`, …), `X-File-Name`, and `X-FairShift-Language` headers → the processed result plus the saved `upload` entry |
+| `GET /api/uploads` | the signed-in worker's uploads, newest first |
+| `GET /api/uploads/:id` | one upload with every extracted field, the summary and the review notes |
+| `GET /api/uploads/:id/file` | the original file (only for its owner) |
+| `DELETE /api/uploads/:id` | deletes the file and the record |
