@@ -1,14 +1,79 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap');
 @import 'tailwindcss';
 
 @theme {
   --font-sans: 'DM Sans', sans-serif;
+
+  /* FairShift brand */
+  --color-forest: #103f32; /* dark panels, headings */
+  --color-pine: #23775d; /* primary buttons */
+  --color-lime: #d9e99e; /* accent buttons on dark panels */
+  --color-lime-text: #d4ec8f; /* eyebrow text on dark panels */
+  --color-mist: #e9f1e6; /* soft fills, pills, notes */
+  --color-paper: #f5f7f2; /* page background */
+  --color-line: #e3e8e0; /* card borders */
+  --color-muted: #5f6d66; /* secondary text */
+
+  /* Existing screens use emerald and slate; map them onto the brand greens and
+     green-grays so every component shares one look. */
+  --color-emerald-50: #e9f1e6;
+  --color-emerald-100: #dbe8d6;
+  --color-emerald-200: #c4dabc;
+  --color-emerald-300: #d4ec8f;
+  --color-emerald-400: #5fa98a;
+  --color-emerald-500: #3b9174;
+  --color-emerald-600: #2c8266;
+  --color-emerald-700: #23775d;
+  --color-emerald-800: #1a5f49;
+  --color-emerald-900: #143f30;
+  --color-emerald-950: #103f32;
+  --color-slate-50: #f5f7f2;
+  --color-slate-100: #eef2ec;
+  --color-slate-200: #e3e8e0;
+  --color-slate-300: #cdd5ca;
+  --color-slate-400: #9aa69f;
+  --color-slate-500: #6f7c75;
+  --color-slate-600: #5f6d66;
+  --color-slate-700: #3f4d46;
+  --color-slate-800: #24352d;
+  --color-slate-900: #143f30;
+  --color-slate-950: #0e2b22;
+  --color-stone-50: #f5f7f2;
+
+  --animate-rise: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-fade: fade 0.4s ease both;
+  --animate-slide-in: slide-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-fill: fill 1.2s ease-in-out infinite;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-in {
+    from { transform: translateX(100%); }
+    to { transform: none; }
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+  @keyframes fill {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
 }
 
 @layer base {
   body {
     min-width: 320px;
-    background: #fafaf9;
+    background: var(--color-paper);
+    color: var(--color-forest);
+    -webkit-font-smoothing: antialiased;
   }
 
   button,
@@ -16,9 +81,45 @@
     cursor: pointer;
   }
 
-  button:focus-visible,
-  select:focus-visible {
-    outline: 3px solid rgb(16 185 129 / 0.35);
+  :where(button, a, input, select, textarea, summary):focus-visible {
+    outline: 3px solid rgb(35 119 93 / 0.4);
     outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Stagger: give children of .stagger a rising entrance, one after another. */
+  .stagger > * {
+    animation: var(--animate-rise);
+  }
+  .stagger > *:nth-child(2) { animation-delay: 70ms; }
+  .stagger > *:nth-child(3) { animation-delay: 140ms; }
+  .stagger > *:nth-child(4) { animation-delay: 210ms; }
+  .stagger > *:nth-child(5) { animation-delay: 280ms; }
+  .stagger > *:nth-child(n + 6) { animation-delay: 350ms; }
+
+  .lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px -18px rgb(16 63 50 / 0.45);
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, #eef2ec 25%, #f8faf6 50%, #eef2ec 75%);
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

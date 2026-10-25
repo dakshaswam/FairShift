@@ -136,6 +136,7 @@ export function Assistant({
   initialMode = "ask",
   initialQuestion,
   startUpload = false,
+  ask,
   paystubResult,
   onPaystubResult,
   hourlyWage,
@@ -148,6 +149,8 @@ export function Assistant({
   initialQuestion?: string
   // Open the file picker as soon as the chat opens ("Check a pay stub").
   startUpload?: boolean
+  // A question to send now, e.g. a "Try asking" suggestion; a new id sends again.
+  ask?: { text: string; id: number }
   paystubResult: PaystubResult | null
   onPaystubResult: (result: PaystubResult | null) => void
   hourlyWage?: number | null
@@ -480,6 +483,11 @@ export function Assistant({
   }, [])
 
   useEffect(() => {
+    if (ask) void send(ask.text)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ask?.id])
+
+  useEffect(() => {
     if (!initialQuestion) return
     // A timer (cleared on unmount) so React's dev-mode double mount sends it once.
     const timer = setTimeout(() => send(initialQuestion), 0)
@@ -519,7 +527,7 @@ export function Assistant({
         <div
           role="group"
           aria-label={t.modes.ask}
-          className="-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none]"
+          className="flex flex-wrap gap-1.5 pb-1"
         >
           {MODES.map((m) => (
             <button
@@ -583,12 +591,12 @@ export function Assistant({
             item.role === "user" ? (
               <div
                 key={item.id}
-                className="max-w-[86%] self-end whitespace-pre-wrap rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 leading-relaxed text-white [overflow-wrap:anywhere]"
+                className="max-w-[86%] animate-rise self-end whitespace-pre-wrap rounded-2xl rounded-ee-md bg-mist px-4 py-3 leading-relaxed text-forest [overflow-wrap:anywhere]"
               >
                 {item.text}
               </div>
             ) : (
-              <div key={item.id} className="w-full">
+              <div key={item.id} className="w-full animate-rise">
                 {item.cards.map((card, i) => (
                   <ChatCard key={i} card={card} t={t} language={language} hourlyWage={hourlyWage} onEditWage={onEditWage} />
                 ))}

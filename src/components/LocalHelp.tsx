@@ -31,9 +31,12 @@ type Origin = { label: string; lat?: number; lng?: number }
 export function LocalHelp({
   language,
   defaultLocation,
+  embedded = false,
 }: {
   language: string
   defaultLocation: string
+  // On a page rather than in a scrolling side panel.
+  embedded?: boolean
 }) {
   const t = useT()
   const [category, setCategory] = useState<HelpCategory>("legal_aid")
@@ -113,7 +116,7 @@ export function LocalHelp({
   const active = tabs.find((tab) => tab.id === category)!
 
   return (
-    <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+    <div className={embedded ? "" : "flex-1 overflow-y-auto p-5 sm:p-6"}>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -223,7 +226,7 @@ export function LocalHelp({
       </div>
 
       <p className="mt-6 rounded-2xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-950">
-        <strong>{t("Before you call:")}</strong> {t("have your FairShift shift log, pay stubs and bank deposits ready. Legal aid and worker centers help workers regardless of immigration status.")}</p>
+        <strong>{t("Before you call:")}</strong> {t("have your pay stubs, messages and bank deposits ready. Legal aid and worker centers help workers regardless of immigration status.")}</p>
     </div>
   )
 }

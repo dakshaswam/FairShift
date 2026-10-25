@@ -22,6 +22,7 @@ export function JobPay({
   defaultJobTitle,
   defaultWage,
   autoSearch = false,
+  embedded = false,
 }: {
   language: string
   defaultLocation: string
@@ -29,6 +30,8 @@ export function JobPay({
   defaultWage?: number
   // Run the search on open, e.g. when the job comes from the worker's profile.
   autoSearch?: boolean
+  // On a page rather than in a scrolling side panel.
+  embedded?: boolean
 }) {
   const t = useT()
   const [jobTitle, setJobTitle] = useState(defaultJobTitle)
@@ -78,7 +81,7 @@ export function JobPay({
     : []
 
   return (
-    <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+    <div className={embedded ? "" : "flex-1 overflow-y-auto p-5 sm:p-6"}>
       <form
         onSubmit={(event) => {
           event.preventDefault()
