@@ -81,8 +81,6 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
   const [uploads, setUploads] = useState<UploadSummary[]>([])
   const [assistantRequest, setAssistantRequest] = useState<AssistantRequest | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  // Set right after a sign-in so the language panel opens over Home (not on a page refresh).
-  const [askLanguage, setAskLanguage] = useState(false)
   const t = translator(language)
 
   // Keep <html lang> and text direction in sync (screen readers, fonts, Arabic and Urdu right-to-left).
@@ -119,21 +117,14 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
 
   // A returning worker's saved language (in Supabase) always wins over what was picked on the
   // sign-in screen. A first-time worker keeps the sign-in screen's language; the job step saves it.
-  // The language panel opens again over Home after a fresh sign-in.
-  const enterApp = (signedIn: User, freshSignIn = false) => {
+  const enterApp = (signedIn: User) => {
     setUser(signedIn)
     const saved = signedIn.profile?.language
     if (saved) setLanguage(saved)
     else if (signedIn.profile?.occupation) saveProfile({ language }).then(setUser).catch(() => {})
     setAuthStep(signedIn.profile?.occupation ? "app" : "occupation")
-    setAskLanguage(freshSignIn)
     void refreshUploads(true)
   }
-
-  // The Shell reads askLanguage once when it mounts; clear it so it doesn't reopen later.
-  useEffect(() => {
-    if (authStep === "app" && askLanguage) setAskLanguage(false)
-  }, [authStep, askLanguage])
 
   useEffect(() => {
     getCurrentUser()
@@ -191,7 +182,7 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
     )
   }
   if (authStep === "login" || !user) {
-    return <LoginScreen language={language} onLanguage={setLanguage} onSignedIn={(signedIn) => enterApp(signedIn, true)} />
+    return <LoginScreen language={language} onLanguage={setLanguage} onSignedIn={enterApp} />
   }
   if (authStep === "occupation" || authStep === "editOccupation") {
     return (
@@ -318,7 +309,6 @@ function AppInner({ language, setLanguage }: { language: string; setLanguage: (v
       onLanguage={changeLanguage}
       onEditJob={editJob}
       onSignOut={logOut}
-      askLanguage={askLanguage}
       floating={floating}
     >
       {pages[page]}
