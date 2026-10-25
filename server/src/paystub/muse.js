@@ -1,11 +1,11 @@
 // One stateless, text-only Muse request (Meta Model API). No files or tools.
 // Port of fairshift_paystub/muse.py.
 
+import { museModels } from "../muse-models.js"
 import { ModelError } from "./errors.js"
 import { EXTRACTION_SCHEMA } from "./schema.js"
 
 const BASE_URL = "https://api.meta.ai/v1"
-const DEFAULT_MODEL = "muse-spark-1.3"
 const TIMEOUT_MS = 120_000
 // All attempts together stay inside a Vercel function's time limit.
 const TOTAL_BUDGET_MS = 240_000
@@ -61,8 +61,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 async function complete(payload) {
   const key = process.env.MUSE_API_KEY
   if (!key?.trim()) throw new ModelError("Set MUSE_API_KEY in the server environment.")
-  const body = JSON.stringify({ model: process.env.MUSE_MODEL || DEFAULT_MODEL, ...payload })
-  const details = { status_code: null, finish_reason: null, attempts: 0, request_body_bytes: Buffer.byteLength(body), error_response_body: null }
+  // A "model not found" reply moves on to the next model (see muse-models.js).
+  const models = museModels()
+  let modelIndex = 0
+  const body = () => JSON.stringify({ model: models[modelIndex], ...payload })
+  const details = { status_code: null, finish_reason: null, attempts: 0, models_tried: 1, request_body_bytes: Buffer.byteLength(body()), error_response_body: null }
   const deadline = Date.now() + TOTAL_BUDGET_MS
 
   let response = null
@@ -74,10 +77,17 @@ async function complete(payload) {
       response = await fetch(`${BASE_URL}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body,
+        body: body(),
         signal: AbortSignal.timeout(Math.min(TIMEOUT_MS, remaining)),
       })
       details.status_code = response.status
+      if (response.status === 404 && modelIndex < models.length - 1) {
+        await response.body?.cancel()
+        modelIndex++
+        details.models_tried++
+        attempt--
+        continue
+      }
       if (response.status < 400 || !RETRY_STATUSES.has(response.status)) break
     } catch {
       response = null

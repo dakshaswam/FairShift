@@ -8,6 +8,7 @@
 import { randomUUID } from "node:crypto"
 import express, { Router } from "express"
 import { requireUser } from "./auth.js"
+import { museModels } from "./muse-models.js"
 import { CATEGORIES, findHelp } from "./help.js"
 import { comparePay } from "./jobs.js"
 import { detectMessageLanguage, looksLikeWrongLanguage } from "./language-detect.js"
@@ -15,7 +16,7 @@ import { LANGUAGES, resolveLanguage } from "./languages.js"
 import { checkPay } from "./payrules.js"
 
 const MUSE_URL = "https://api.meta.ai/v1/chat/completions"
-const model = () => process.env.MUSE_MODEL || "muse-spark-1.3"
+const model = () => museModels()[0]
 // Muse reasons before it answers; "Fast" keeps that short, "Careful" lets it think more.
 const EFFORT = { fast: "low", careful: "high" }
 const MAX_TOOL_ROUNDS = 8
@@ -473,19 +474,25 @@ class MuseError extends Error {
 // Streams one Chat Completions response. Calls onText with the text so far and
 // resolves with the assembled assistant message and finish reason.
 async function streamMuse({ messages, effort, signal, onText }) {
-  const response = await fetch(MUSE_URL, {
-    method: "POST",
-    signal,
-    headers: { Authorization: `Bearer ${process.env.MUSE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: model(),
-      stream: true,
-      reasoning_effort: effort,
-      max_tokens: 16000,
-      tools: TOOLS,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-    }),
-  })
+  let response
+  // A "model not found" reply tries the next model (see muse-models.js).
+  for (const name of museModels()) {
+    response = await fetch(MUSE_URL, {
+      method: "POST",
+      signal,
+      headers: { Authorization: `Bearer ${process.env.MUSE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: name,
+        stream: true,
+        reasoning_effort: effort,
+        max_tokens: 16000,
+        tools: TOOLS,
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      }),
+    })
+    if (response.status !== 404) break
+    await response.body?.cancel()
+  }
   if (!response.ok || !response.body) {
     const detail = await response.text().catch(() => "")
     throw new MuseError(response.status, `Muse request failed (${response.status}): ${detail.slice(0, 300)}`)
