@@ -38,6 +38,8 @@ if (!existsSync("server/.env")) {
   else bad("SESSION_SECRET is missing or short (logins reset on every restart)", "set it to a long random string")
   if ((env.MUSE_API_KEY ?? "").trim()) ok("MUSE_API_KEY is set")
   else bad("MUSE_API_KEY is empty (the assistant chat will not answer)", "add your Meta Model API key")
+  if ((env.SUPABASE_URL ?? "").trim() && (env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim()) ok("Supabase is configured")
+  else console.log("  – Supabase is not configured; users and uploads are saved to server/data (fine for development)")
 }
 
 console.log("\n.env (paystub service)")
@@ -65,6 +67,7 @@ else {
   else bad("server is running without GOOGLE_CLIENT_ID", "fill in server/.env, then restart the server")
   if (health.body?.assistantConfigured) ok("server has MUSE_API_KEY loaded for the assistant")
   else bad("server is running without MUSE_API_KEY", "fill in server/.env, then restart the server")
+  if (health.body?.database) ok(`server saves users and uploads to: ${health.body.database}`)
 }
 
 console.log("\nPaystub service (http://127.0.0.1:8790)")

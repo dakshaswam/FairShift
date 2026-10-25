@@ -427,6 +427,23 @@ const bn: Record<string, string> = {
   "What are my rights at work?": "কাজে আমার অধিকার কী কী?",
   "Help me file a wage claim.": "বেতনের দাবি করতে সাহায্য করুন।",
   "Help me check a job offer.": "একটি চাকরির প্রস্তাব দেখে দিন।",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "আপনার বেতনের স্লিপগুলো আপনার অ্যাকাউন্টে গোপনে রাখা হয়। আপনি চাইলে যেকোনো সময় মুছে দিতে পারেন।",
+  "Repeat": "আবার করুন",
+  "Delete this pay stub and its photo? This can’t be undone.": "এই বেতনের স্লিপ আর এর ছবি মুছে দেবেন? একবার মুছে দিলে আর ফেরত পাবেন না।",
+  "We couldn’t delete it. Try again.": "এটা মুছতে পারিনি। আবার চেষ্টা করুন।",
+  "Upload history": "আগের আপলোডগুলো",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "আপনি যে বেতনের স্লিপ আপলোড করবেন, তা আপনার অ্যাকাউন্টে গোপনে রাখা হয়। শুধু আপনি দেখতে পারবেন, আর চাইলে যেকোনো সময় মুছে দিতে পারবেন।",
+  "No uploads yet.": "এখনো কিছু আপলোড করেননি।",
+  "Current": "বর্তমান",
+  "Uploaded {date}": "আপলোড করা হয়েছে {date}",
+  "Pay date {date}": "বেতনের তারিখ {date}",
+  "Use this one": "এটি ব্যবহার করুন",
+  "View file": "ফাইল দেখুন",
+  "Delete": "মুছুন",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "আপনার এখনকার বেতনের স্লিপ এবং আপনি আগে যত বেতনের স্লিপ দিয়েছেন, সবগুলো।",
+  "Current pay stub": "এখনকার বেতনের স্লিপ",
 }
 
 export default bn

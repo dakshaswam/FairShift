@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react"
-import { getCurrentUser, saveProfile, signOut, type User } from "./api"
+import { getCurrentUser, getUpload, listUploads, saveProfile, savedToResult, signOut, type User } from "./api"
 import { Assistant } from "./components/Assistant"
 import type { AssistantMode } from "./components/assistantStrings"
 import { GoogleSignIn } from "./components/GoogleSignIn"
+import { UploadHistory } from "./components/UploadHistory"
 import { LanguagePicker } from "./components/LanguagePicker"
 import { JobPay } from "./components/JobPay"
 import { LocalHelp } from "./components/LocalHelp"
 import { OccupationStep } from "./components/OccupationStep"
 import { EnteredWage } from "./components/EnteredWage"
 import { I18nProvider, LANGUAGE_OPTIONS, languageDir, speechLang, tk, translator } from "./i18n"
-import { amount, dollars, isUsd, type PaystubResult } from "./paystub-api"
+import { amount, dollars, isUsd, type PaystubResult, type ProcessedPaystub, type UploadSummary } from "./paystub-api"
 
 type IconName = "home" | "clock" | "file" | "help" | "shield" | "camera" | "chevron" | "briefcase" | "map" | "volume" | "check"
 
@@ -94,7 +95,6 @@ function Icon({
 
 const navItems: { id: string; label: string; icon: IconName }[] = [
   { id: "home", label: tk("Home"), icon: "home" },
-  { id: "shifts", label: tk("My shifts"), icon: "clock" },
   { id: "pay", label: tk("Pay records"), icon: "file" },
   { id: "help", label: tk("Get help"), icon: "help" },
 ]
@@ -112,7 +112,6 @@ function AppInner({
   const [user, setUser] = useState<User | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [active, setActive] = useState("home")
-  const [clockedIn, setClockedIn] = useState(false)
   const [drawer, setDrawer] =
     useState<"assistant" | "claim" | "lawyer" | "jobs" | null>(null)
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("stub")
@@ -140,11 +139,36 @@ function AppInner({
   const workLocation = profile?.location || "Queens, NY"
   const shortLocation = workLocation.split(",")[0]
 
+  // Saved pay stubs. The newest one becomes the current pay stub after sign-in.
+  const [uploads, setUploads] = useState<UploadSummary[]>([])
+  const currentUploadId = (paystubResult as ProcessedPaystub | null)?.upload?.id ?? null
+  const openUpload = async (id: string) => {
+    try {
+      setPaystubResult(savedToResult(await getUpload(id)))
+    } catch {
+      // The list still shows it; the worker can try again.
+    }
+  }
+  const refreshUploads = async (openLatest: boolean) => {
+    try {
+      const list = await listUploads()
+      setUploads(list)
+      if (openLatest && list[0]) await openUpload(list[0].id)
+    } catch {
+      // History is optional; the app works without it.
+    }
+  }
+  const removedUpload = (id: string) => {
+    setUploads((list) => list.filter((upload) => upload.id !== id))
+    if (id === currentUploadId) setPaystubResult(null)
+  }
+
   // Returning workers go straight to the app; new ones pick a language and job first.
   const enterApp = (signedIn: User) => {
     setUser(signedIn)
     if (signedIn.profile?.language) setLanguage(signedIn.profile.language)
     setAuthStep(signedIn.profile?.occupation ? "app" : "language")
+    void refreshUploads(true)
   }
 
   useEffect(() => {
@@ -165,19 +189,29 @@ function AppInner({
   const logOut = async () => {
     setMenuOpen(false)
     await signOut().catch(() => {})
+    window.speechSynthesis?.cancel()
     setUser(null)
+    setUploads([])
+    setPaystubResult(null)
     setDrawer(null)
     setActive("home")
     setAuthStep("login")
   }
 
+  // Read-aloud for the pay stub summary. Repeat always starts again from the beginning.
+  const [speaking, setSpeaking] = useState(false)
   const speak = (text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel()
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.lang = speechLang(language)
-      window.speechSynthesis.speak(utterance)
-    }
+    if (!("speechSynthesis" in window)) return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = speechLang(language)
+    utterance.onend = utterance.onerror = () => setSpeaking(false)
+    setSpeaking(true)
+    window.speechSynthesis.speak(utterance)
+  }
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel()
+    setSpeaking(false)
   }
 
   // Everything happens in the one assistant chat, including pay stub uploads.
@@ -383,7 +417,7 @@ function AppInner({
             <Icon name="shield" className="mb-3 size-6 text-emerald-300" />
             <p className="text-sm font-bold">{t("Your records belong to you.")}</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-300">
-              {t("Paystub data stays in this browser session. Nothing is saved as pay history.")}
+              {t("Your pay stubs are saved privately to your account. You can delete them anytime.")}
             </p>
           </div>
         </aside>
@@ -416,41 +450,7 @@ function AppInner({
                 </span>
               </div>
 
-              <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-                <article className="overflow-hidden rounded-3xl bg-emerald-800 p-6 text-white shadow-sm sm:p-8">
-                  <div className="flex items-start justify-between gap-5">
-                    <div>
-                      <p className="text-sm font-semibold text-emerald-200">
-                        {t("Today’s shift")}
-                      </p>
-                      <h2 className="mt-1 text-2xl font-bold">
-                        {clockedIn ? t("Shift in progress") : t("Ready to start?")}
-                      </h2>
-                      <p className="mt-2 max-w-md text-sm leading-relaxed text-emerald-100">
-                        {clockedIn
-                          ? t("This prototype toggle is not a verified work record.")
-                          : t("Try the shift interface. Work-record storage is not connected in this prototype.")}
-                      </p>
-                    </div>
-                    <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10">
-                      <Icon name="clock" className="size-6" />
-                    </span>
-                  </div>
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <button
-                      onClick={() => setClockedIn(!clockedIn)}
-                      className="rounded-xl bg-amber-300 px-6 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
-                    >
-                      {clockedIn ? t("End shift") : t("Clock in now")}
-                    </button>
-                    <p className="text-xs text-emerald-100">
-                      {clockedIn
-                        ? t("Prototype session only")
-                        : t("No location or work evidence is recorded")}
-                    </p>
-                  </div>
-                </article>
-
+              <section>
                 <article className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-7">
                   <div className="flex items-center justify-between">
                     <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold text-amber-900">
@@ -487,7 +487,7 @@ function AppInner({
                   <h2 className="text-xl font-bold tracking-tight">
                     {t("Your pay, made clear")}
                   </h2>
-                  <button className="text-sm font-bold text-emerald-700">
+                  <button onClick={() => setActive("pay")} className="text-sm font-bold text-emerald-700">
                     {t("View all")}
                   </button>
                 </div>
@@ -504,7 +504,7 @@ function AppInner({
                       {t("Take a photo. We’ll explain each line and check the math.")}
                     </p>
                     <span className="mt-5 flex items-center gap-1 text-sm font-bold text-emerald-700">
-                      Scan pay stub <Icon name="chevron" className="size-4" />
+                      {t("Scan pay stub")} <Icon name="chevron" className="size-4" />
                     </span>
                   </button>
                   <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -529,14 +529,32 @@ function AppInner({
                       <span className="grid size-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
                         <Icon name="volume" />
                       </span>
-                      <button
-                        onClick={() => paystubResult && speak(paystubResult.assistant_message)}
-                        disabled={!paystubResult}
-                        aria-label={t("Play pay explanation")}
-                        className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold"
-                      >
-                        {t("Play")}
-                      </button>
+                      <div className="flex gap-1.5">
+                        {speaking ? (
+                          <button
+                            onClick={stopSpeaking}
+                            className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800"
+                          >
+                            ■ {t("Stop")}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => paystubResult && speak(paystubResult.assistant_message)}
+                            disabled={!paystubResult}
+                            aria-label={t("Play pay explanation")}
+                            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40"
+                          >
+                            ▶ {t("Play")}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => paystubResult && speak(paystubResult.assistant_message)}
+                          disabled={!paystubResult}
+                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40"
+                        >
+                          ↺ {t("Repeat")}
+                        </button>
+                      </div>
                     </div>
                     <h3 className="mt-5 font-bold">{t("Listen in {language}", { language })}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">
@@ -590,32 +608,6 @@ function AppInner({
                 </div>
               </section>
             </>
-          ) : active === "shifts" ? (
-            <>
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                <div>
-                  <p className="text-sm font-bold text-emerald-700">
-                    {t("SHIFT INTERFACE")}
-                  </p>
-                  <h1 className="mt-2 text-3xl font-bold tracking-tight">
-                    {t("My shifts")}
-                  </h1>
-                  <p className="mt-2 text-slate-600">
-                    A prototype clock interface; not payroll evidence.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setClockedIn(!clockedIn)}
-                  className="rounded-xl bg-emerald-700 px-6 py-3 font-bold text-white"
-                >
-                  {clockedIn ? t("End current shift") : t("Clock in now")}
-                </button>
-              </div>
-              <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
-                <h2 className="text-lg font-bold">{t("No verified work log is connected")}</h2>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">{t("The clock toggle is a prototype interaction. It does not supply hours or evidence for paystub analysis. The assistant uses only the current uploaded document.")}</p>
-              </section>
-            </>
           ) : active === "pay" ? (
             <>
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -627,7 +619,7 @@ function AppInner({
                     {t("Pay records")}
                   </h1>
                   <p className="mt-2 text-slate-600">
-                    {t("Review the validated fields from your current uploaded paystub.")}
+                    {t("Your current pay stub and every pay stub you’ve uploaded.")}
                   </p>
                 </div>
                 <button
@@ -638,7 +630,7 @@ function AppInner({
                 </button>
               </div>
               <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{t("Current upload only")}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{t("Current pay stub")}</p>
                 <h2 className="mt-3 text-xl font-bold">{currentStub?.employer_name ?? t("No paystub has been extracted")}</h2>
                 {currentStub ? <>
                   <p className="mt-2 text-sm text-slate-600">{t("{start} to {end} · Pay date {date}", { start: currentStub.pay_period_start ?? t("Start not provided"), end: currentStub.pay_period_end ?? t("End not provided"), date: currentStub.pay_date ?? t("not provided") })}</p>
@@ -653,6 +645,13 @@ function AppInner({
                 </> : <p className="mt-3 text-sm text-slate-600">{t("Upload a paystub to see its hours, rates, deductions and pay here.")}</p>}
                 <button onClick={() => checkPaystub()} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">{currentStub ? t("Review this paystub") : t("Upload a paystub")}</button>
               </section>
+              <UploadHistory
+                uploads={uploads}
+                currentId={currentUploadId}
+                language={language}
+                onOpen={openUpload}
+                onDeleted={removedUpload}
+              />
             </>
           ) : (
             <>
@@ -742,7 +741,7 @@ function AppInner({
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-slate-200 bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-slate-200 bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
         {navItems.map((item) => (
           <button
             key={item.id}
@@ -817,7 +816,10 @@ function AppInner({
                 initialQuestion={assistantQuestion}
                 startUpload={assistantUpload}
                 paystubResult={paystubResult}
-                onPaystubResult={setPaystubResult}
+                onPaystubResult={(result) => {
+                  setPaystubResult(result)
+                  void refreshUploads(false)
+                }}
                 hourlyWage={profile?.hourlyWage}
                 onEditWage={() => setAuthStep("editOccupation")}
                 onLanguageChange={changeLanguage}

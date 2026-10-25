@@ -427,6 +427,23 @@ const ru: Record<string, string> = {
   "What are my rights at work?": "Какие у меня права на работе?",
   "Help me file a wage claim.": "Помоги подать жалобу на зарплату.",
   "Help me check a job offer.": "Помоги проверить предложение о работе.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Ваши листки о зарплате хранятся только в вашем аккаунте. Вы можете удалить их в любое время.",
+  "Repeat": "Повторить",
+  "Delete this pay stub and its photo? This can’t be undone.": "Удалить этот листок о зарплате и его фото? Это нельзя будет вернуть.",
+  "We couldn’t delete it. Try again.": "Не получилось удалить. Попробуйте ещё раз.",
+  "Upload history": "История загрузок",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Каждый листок о зарплате, который вы загружаете, хранится только в вашем аккаунте. Его видите только вы, и вы можете удалить его в любое время.",
+  "No uploads yet.": "Пока ничего не загружено.",
+  "Current": "Текущий",
+  "Uploaded {date}": "Загружено {date}",
+  "Pay date {date}": "Дата зарплаты {date}",
+  "Use this one": "Использовать этот",
+  "View file": "Посмотреть файл",
+  "Delete": "Удалить",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Ваш текущий расчётный листок и все расчётные листки, которые вы загрузили.",
+  "Current pay stub": "Текущий расчётный листок",
 }
 
 export default ru

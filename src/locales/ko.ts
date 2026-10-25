@@ -427,6 +427,23 @@ const ko: Record<string, string> = {
   "What are my rights at work?": "일터에서 내 권리는 무엇인가요?",
   "Help me file a wage claim.": "못 받은 돈 청구하기 도와주세요.",
   "Help me check a job offer.": "일자리 제안 확인 도와주세요.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "급여 명세서는 회원님만 볼 수 있게 저장됩니다. 원하시면 언제든지 지우실 수 있어요.",
+  "Repeat": "반복",
+  "Delete this pay stub and its photo? This can’t be undone.": "이 급여 명세서와 사진을 지우시겠어요? 지우면 다시 되돌릴 수 없어요.",
+  "We couldn’t delete it. Try again.": "지우지 못했어요. 다시 시도해 주세요.",
+  "Upload history": "올린 기록",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "올리신 급여 명세서는 회원님 계정에 남만 볼 수 있게 저장됩니다. 회원님만 보실 수 있고, 언제든지 지우실 수 있어요.",
+  "No uploads yet.": "아직 올린 것이 없어요.",
+  "Current": "현재",
+  "Uploaded {date}": "{date}에 올렸어요",
+  "Pay date {date}": "급여일 {date}",
+  "Use this one": "이걸 쓰기",
+  "View file": "파일 보기",
+  "Delete": "지우기",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "현재 월급 명세서와 지금까지 올려주신 모든 월급 명세서입니다.",
+  "Current pay stub": "현재 월급 명세서",
 }
 
 export default ko

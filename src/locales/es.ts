@@ -428,6 +428,23 @@ const es: Record<string, string> = {
   "What are my rights at work?": "Mis derechos en el trabajo",
   "Help me file a wage claim.": "Ayuda para hacer un reclamo de salario",
   "Help me check a job offer.": "Ayuda para revisar una oferta de trabajo",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Tus recibos de pago se guardan en privado en tu cuenta. Puedes borrarlos cuando quieras.",
+  "Repeat": "Repetir",
+  "Delete this pay stub and its photo? This can’t be undone.": "¿Borrar este recibo de pago y su foto? Esto no se puede deshacer.",
+  "We couldn’t delete it. Try again.": "No se pudo borrar. Intenta de nuevo.",
+  "Upload history": "Historial de subidas",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Cada recibo de pago que subas se guarda en privado en tu cuenta. Solo tú puedes verlo, y puedes borrarlo cuando quieras.",
+  "No uploads yet.": "Todavía no has subido nada.",
+  "Current": "Actual",
+  "Uploaded {date}": "Subido {date}",
+  "Pay date {date}": "Fecha de pago {date}",
+  "Use this one": "Usar este",
+  "View file": "Ver archivo",
+  "Delete": "Borrar",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Su recibo de pago actual y todos los recibos de pago que usted ha subido.",
+  "Current pay stub": "Recibo de pago actual",
 }
 
 export default es

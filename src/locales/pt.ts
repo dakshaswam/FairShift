@@ -427,6 +427,23 @@ const pt: Record<string, string> = {
   "What are my rights at work?": "Quais são meus direitos no trabalho?",
   "Help me file a wage claim.": "Ajudar com reclamação de salário.",
   "Help me check a job offer.": "Ajudar a conferir oferta de trabalho.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Seus contracheques ficam salvos só para você na sua conta. Você pode apagar quando quiser.",
+  "Repeat": "Repetir",
+  "Delete this pay stub and its photo? This can’t be undone.": "Apagar este contracheque e a foto dele? Depois de apagar, não dá para voltar atrás.",
+  "We couldn’t delete it. Try again.": "Não conseguimos apagar. Tente de novo.",
+  "Upload history": "Histórico de envios",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Todo contracheque que você envia fica salvo só para você na sua conta. Só você pode ver, e você pode apagar quando quiser.",
+  "No uploads yet.": "Você ainda não enviou nada.",
+  "Current": "Atual",
+  "Uploaded {date}": "Enviado em {date}",
+  "Pay date {date}": "Data de pagamento {date}",
+  "Use this one": "Usar este",
+  "View file": "Ver arquivo",
+  "Delete": "Apagar",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Seu contracheque atual e todos os contracheques que você já enviou.",
+  "Current pay stub": "Contracheque atual",
 }
 
 export default pt

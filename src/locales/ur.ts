@@ -427,6 +427,23 @@ const ur: Record<string, string> = {
   "What are my rights at work?": "کام پر میرے کیا حقوق ہیں؟",
   "Help me file a wage claim.": "تنخواہ کے دعوے میں میری مدد کریں۔",
   "Help me check a job offer.": "نوکری کی پیشکش چیک کرنے میں مدد کریں۔",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "آپ کی تنخواہ کی پرچیاں آپ کے اکاؤنٹ میں نجی طور پر محفوظ ہیں۔ آپ انہیں جب چاہیں ہٹا سکتے ہیں۔",
+  "Repeat": "دوبارہ کریں",
+  "Delete this pay stub and its photo? This can’t be undone.": "کیا یہ تنخواہ کی پرچی اور اس کی تصویر ہٹا دیں؟ یہ واپس نہیں آئے گی۔",
+  "We couldn’t delete it. Try again.": "ہم اسے ہٹا نہیں سکے۔ دوبارہ کوشش کریں۔",
+  "Upload history": "اپ لوڈ کی فہرست",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "آپ جو بھی تنخواہ کی پرچی بھیجتے ہیں، وہ آپ کے اکاؤنٹ میں نجی طور پر محفوظ ہو جاتی ہے۔ اسے صرف آپ دیکھ سکتے ہیں، اور جب چاہیں ہٹا سکتے ہیں۔",
+  "No uploads yet.": "ابھی تک کوئی پرچی نہیں بھیجی۔",
+  "Current": "موجودہ",
+  "Uploaded {date}": "{date} کو اپ لوڈ ہوئی",
+  "Pay date {date}": "تنخواہ کی تاریخ {date}",
+  "Use this one": "اسی کو استعمال کریں",
+  "View file": "فائل دیکھیں",
+  "Delete": "ہٹائیں",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "آپ کی موجودہ تنخواہ کی پرچی اور ہر پرچی جو آپ نے اپلوڈ کی ہے۔",
+  "Current pay stub": "موجودہ تنخواہ کی پرچی",
 }
 
 export default ur

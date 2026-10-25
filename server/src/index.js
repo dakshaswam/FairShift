@@ -2,6 +2,8 @@ import express from "express"
 import { assistantRouter } from "./assistant.js"
 import { authRouter } from "./auth.js"
 import { serpRouter } from "./routes.js"
+import { supabase } from "./db.js"
+import { uploadsRouter } from "./uploads-route.js"
 
 const app = express()
 const port = Number(process.env.PORT) || 8787
@@ -17,6 +19,8 @@ app.use((req, res, next) => {
 
 // Mounted before the small global body limit: chat bodies carry pay stub fields.
 app.use("/api", assistantRouter)
+// Before the JSON body limit too: it receives pay stub files.
+app.use("/api", uploadsRouter)
 app.use(express.json({ limit: "20kb" }))
 
 app.get("/api/health", (_req, res) => {
@@ -25,6 +29,7 @@ app.get("/api/health", (_req, res) => {
     serpApiConfigured: Boolean(process.env.SERPAPI_KEY),
     googleSignInConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
     assistantConfigured: Boolean(process.env.MUSE_API_KEY),
+    database: supabase ? "supabase" : "local files",
   })
 })
 
@@ -40,4 +45,5 @@ app.use((error, _req, res, _next) => {
 app.listen(port, () => {
   console.log(`FairShift SerpApi service listening on http://localhost:${port}`)
   if (!process.env.SERPAPI_KEY) console.warn("Warning: SERPAPI_KEY is not set — searches will fail.")
+  console.log(supabase ? "Saving users and uploads to Supabase." : "Supabase is not configured; saving users and uploads to server/data.")
 })

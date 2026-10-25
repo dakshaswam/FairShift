@@ -428,6 +428,23 @@ const vi: Record<string, string> = {
   "What are my rights at work?": "Quyền của tôi ở chỗ làm là gì?",
   "Help me file a wage claim.": "Giúp tôi nộp đơn đòi tiền lương.",
   "Help me check a job offer.": "Giúp tôi xem lời mời làm việc.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Phiếu lương của bạn được lưu riêng tư trong tài khoản của bạn. Bạn có thể xóa bất cứ lúc nào.",
+  "Repeat": "Làm lại",
+  "Delete this pay stub and its photo? This can’t be undone.": "Xóa phiếu lương này và ảnh của nó? Đã xóa thì không lấy lại được.",
+  "We couldn’t delete it. Try again.": "Không xóa được. Bạn thử lại nhé.",
+  "Upload history": "Lịch sử tải lên",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Mọi phiếu lương bạn tải lên đều được lưu riêng tư trong tài khoản của bạn. Chỉ mình bạn thấy được, và bạn có thể xóa bất cứ lúc nào.",
+  "No uploads yet.": "Chưa tải lên gì.",
+  "Current": "Hiện tại",
+  "Uploaded {date}": "Đã tải lên {date}",
+  "Pay date {date}": "Ngày trả lương {date}",
+  "Use this one": "Dùng phiếu này",
+  "View file": "Xem file",
+  "Delete": "Xóa",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Phiếu lương hiện tại của bạn và mọi phiếu lương bạn đã tải lên.",
+  "Current pay stub": "Phiếu lương hiện tại",
 }
 
 export default vi

@@ -427,6 +427,23 @@ const ht: Record<string, string> = {
   "What are my rights at work?": "Ki dwa mwen genyen nan travay?",
   "Help me file a wage claim.": "Ede m fè yon plent pou lajan yo dwe m.",
   "Help me check a job offer.": "Ede m tcheke yon òf travay.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Fich salè ou yo kenbe prive nan kont ou. Ou ka efase yo nenpòt lè ou vle.",
+  "Repeat": "Repete",
+  "Delete this pay stub and its photo? This can’t be undone.": "Efase fich salè sa a ak foto li a? Ou pap ka chanje sa apre.",
+  "We couldn’t delete it. Try again.": "Nou pa t kapab efase li. Eseye ankò.",
+  "Upload history": "Istwa fich voye yo",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Chak fich salè ou voye rete prive nan kont ou. Se ou sèl ki ka wè li, epi ou ka efase li nenpòt lè.",
+  "No uploads yet.": "Ou poko voye okenn fich.",
+  "Current": "Kounye a",
+  "Uploaded {date}": "Voye {date}",
+  "Pay date {date}": "Dat peman {date}",
+  "Use this one": "Chwazi sa a",
+  "View file": "Gade fichye a",
+  "Delete": "Efase",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Fèy peman ou gen kounye a ak tout fèy peman ou te voye deja yo.",
+  "Current pay stub": "Fèy peman kounye a",
 }
 
 export default ht

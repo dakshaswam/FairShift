@@ -427,6 +427,23 @@ const zh: Record<string, string> = {
   "What are my rights at work?": "我在工作上有什么权利？",
   "Help me file a wage claim.": "帮我投诉欠工资。",
   "Help me check a job offer.": "帮我看看工作机会。",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "您的工资单会私密保存在您的账号里，您可以随时删除。",
+  "Repeat": "重复",
+  "Delete this pay stub and its photo? This can’t be undone.": "要删除这张工资单和它的照片吗？删除后不能恢复。",
+  "We couldn’t delete it. Try again.": "删除失败，请再试一次。",
+  "Upload history": "上传记录",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "您上传的每张工资单都会私密保存在您的账号里。只有您能看到，您可以随时删除。",
+  "No uploads yet.": "还没有上传。",
+  "Current": "当前",
+  "Uploaded {date}": "上传于 {date}",
+  "Pay date {date}": "发薪日 {date}",
+  "Use this one": "用这张",
+  "View file": "查看文件",
+  "Delete": "删除",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "您现在的工资条，以及您上传过的每一张工资条。",
+  "Current pay stub": "现在的工资条",
 }
 
 export default zh

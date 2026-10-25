@@ -427,6 +427,23 @@ const de: Record<string, string> = {
   "What are my rights at work?": "Was sind meine Rechte bei der Arbeit?",
   "Help me file a wage claim.": "Helfen Sie mir bei einer Lohnforderung.",
   "Help me check a job offer.": "Helfen Sie mir, ein Jobangebot zu prüfen.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Ihre Lohnzettel werden privat in Ihrem Konto gespeichert. Sie können sie jederzeit löschen.",
+  "Repeat": "Wiederholen",
+  "Delete this pay stub and its photo? This can’t be undone.": "Diesen Lohnzettel und sein Foto löschen? Das kann man nicht rückgängig machen.",
+  "We couldn’t delete it. Try again.": "Das Löschen hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
+  "Upload history": "Ihre Uploads",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Jeder Lohnzettel, den Sie hochladen, wird privat in Ihrem Konto gespeichert. Nur Sie können ihn sehen, und Sie können ihn jederzeit löschen.",
+  "No uploads yet.": "Sie haben noch nichts hochgeladen.",
+  "Current": "Aktuell",
+  "Uploaded {date}": "Hochgeladen {date}",
+  "Pay date {date}": "Zahltag {date}",
+  "Use this one": "Diesen nehmen",
+  "View file": "Datei ansehen",
+  "Delete": "Löschen",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Ihr aktueller Lohnzettel und alle Lohnzettel, die Sie hochgeladen haben.",
+  "Current pay stub": "Aktueller Lohnzettel",
 }
 
 export default de

@@ -427,6 +427,23 @@ const ar: Record<string, string> = {
   "What are my rights at work?": "ما هي حقوقي في الشغل؟",
   "Help me file a wage claim.": "ساعدني أقدّم شكوى أجور.",
   "Help me check a job offer.": "ساعدني أراجع عرض شغل.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "قسائم راتبك محفوظة بسرّية في حسابك. يمكنك حذفها في أي وقت.",
+  "Repeat": "إعادة",
+  "Delete this pay stub and its photo? This can’t be undone.": "هل تريد حذف قسيمة الراتب هذه وصورتها؟ لا يمكن التراجع عن ذلك.",
+  "We couldn’t delete it. Try again.": "لم نستطع حذفها. حاول مرة أخرى.",
+  "Upload history": "سجل الرفع",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "كل قسيمة راتب ترفعها تُحفظ بسرّية في حسابك. أنت فقط تراها، ويمكنك حذفها في أي وقت.",
+  "No uploads yet.": "لم ترفع أي شيء بعد.",
+  "Current": "الحالية",
+  "Uploaded {date}": "تم الرفع {date}",
+  "Pay date {date}": "تاريخ الدفع {date}",
+  "Use this one": "استخدم هذه",
+  "View file": "عرض الملف",
+  "Delete": "حذف",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "كشف راتبك الحالي وكل كشوف الرواتب التي رفعتها.",
+  "Current pay stub": "كشف الراتب الحالي",
 }
 
 export default ar

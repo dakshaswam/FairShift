@@ -427,6 +427,23 @@ const ja: Record<string, string> = {
   "What are my rights at work?": "仕事での権利は?",
   "Help me file a wage claim.": "未払い給料の申立てを手伝って。",
   "Help me check a job offer.": "求人の内容をチェックして。",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "あなたの給与明細は、あなたのアカウントにだけ大切に保存されます。いつでも削除できます。",
+  "Repeat": "もう一度",
+  "Delete this pay stub and its photo? This can’t be undone.": "この給与明細と写真を削除しますか？削除すると、もとに戻せません。",
+  "We couldn’t delete it. Try again.": "削除できませんでした。もう一度お試しください。",
+  "Upload history": "アップロードの記録",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "アップロードした給与明細は、あなたのアカウントにだけ大切に保存されます。見ることができるのはあなただけです。いつでも削除できます。",
+  "No uploads yet.": "まだアップロードはありません。",
+  "Current": "現在",
+  "Uploaded {date}": "{date} にアップロード",
+  "Pay date {date}": "給料日 {date}",
+  "Use this one": "これを使う",
+  "View file": "ファイルを見る",
+  "Delete": "削除",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "あなたの今の給料明細と、今までに入れたすべての給料明細。",
+  "Current pay stub": "今の給料明細",
 }
 
 export default ja

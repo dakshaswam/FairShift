@@ -427,6 +427,23 @@ const fr: Record<string, string> = {
   "What are my rights at work?": "Quels sont mes droits au travail ?",
   "Help me file a wage claim.": "Aidez-moi à faire une plainte pour salaire.",
   "Help me check a job offer.": "Aidez-moi à vérifier une offre d’emploi.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Vos fiches de paie sont gardées en privé sur votre compte. Vous pouvez les supprimer à tout moment.",
+  "Repeat": "Répéter",
+  "Delete this pay stub and its photo? This can’t be undone.": "Supprimer cette fiche de paie et sa photo ? Vous ne pourrez pas revenir en arrière.",
+  "We couldn’t delete it. Try again.": "Nous n’avons pas pu la supprimer. Essayez encore.",
+  "Upload history": "Historique des envois",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Chaque fiche de paie que vous envoyez est gardée en privé sur votre compte. Vous êtes la seule personne qui peut la voir, et vous pouvez la supprimer à tout moment.",
+  "No uploads yet.": "Aucun envoi pour le moment.",
+  "Current": "Actuelle",
+  "Uploaded {date}": "Envoyée le {date}",
+  "Pay date {date}": "Date de paie {date}",
+  "Use this one": "Choisir celle-ci",
+  "View file": "Voir le fichier",
+  "Delete": "Supprimer",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Votre fiche de paie actuelle et toutes les fiches de paie que vous avez ajoutées.",
+  "Current pay stub": "Fiche de paie actuelle",
 }
 
 export default fr

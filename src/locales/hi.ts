@@ -428,6 +428,23 @@ const hi: Record<string, string> = {
   "What are my rights at work?": "काम पर मेरे क्या अधिकार हैं?",
   "Help me file a wage claim.": "मज़दूरी की शिकायत करने में मदद करें।",
   "Help me check a job offer.": "नौकरी का प्रस्ताव जांचने में मदद करें।",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "आपकी पगार की पर्चियां (पे स्टब) आपके खाते में सुरक्षित रखी जाती हैं। आप उन्हें कभी भी हटा सकते हैं।",
+  "Repeat": "फिर से करें",
+  "Delete this pay stub and its photo? This can’t be undone.": "इस पगार की पर्ची और इसकी फोटो हटाएं? एक बार हटाने के बाद यह वापस नहीं मिलेगी।",
+  "We couldn’t delete it. Try again.": "हम इसे हटा नहीं पाए। फिर से कोशिश करें।",
+  "Upload history": "पहले भेजी हुई सूची",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "आप जो भी पगार की पर्ची भेजते हैं, वह आपके खाते में सुरक्षित रहती है। इसे सिर्फ आप देख सकते हैं, और आप इसे कभी भी हटा सकते हैं।",
+  "No uploads yet.": "अभी तक कुछ नहीं भेजा है।",
+  "Current": "मौजूदा",
+  "Uploaded {date}": "{date} को अपलोड किया",
+  "Pay date {date}": "पगार की तारीख {date}",
+  "Use this one": "इसे चुनें",
+  "View file": "फाइल देखें",
+  "Delete": "हटाएं",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "आपकी मौजूदा पे स्लिप और आपने जो भी पे स्लिप अपलोड की हैं।",
+  "Current pay stub": "मौजूदा पे स्लिप",
 }
 
 export default hi

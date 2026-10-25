@@ -427,6 +427,23 @@ const pl: Record<string, string> = {
   "What are my rights at work?": "Jakie mam prawa w pracy?",
   "Help me file a wage claim.": "Pomóż mi złożyć skargę o zapłatę.",
   "Help me check a job offer.": "Pomóż mi sprawdzić ofertę pracy.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Twoje paski płacowe są zapisane prywatnie na Twoim koncie. Możesz je usunąć w każdej chwili.",
+  "Repeat": "Powtórz",
+  "Delete this pay stub and its photo? This can’t be undone.": "Usunąć ten pasek płacowy i jego zdjęcie? Tego nie da się cofnąć.",
+  "We couldn’t delete it. Try again.": "Nie udało się usunąć. Spróbuj ponownie.",
+  "Upload history": "Historia przesyłania",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Każdy pasek płacowy, który prześlesz, zapisujemy prywatnie na Twoim koncie. Tylko Ty go widzisz i możesz go usunąć w każdej chwili.",
+  "No uploads yet.": "Nie masz jeszcze przesłanych plików.",
+  "Current": "Aktualny",
+  "Uploaded {date}": "Przesłano {date}",
+  "Pay date {date}": "Data wypłaty {date}",
+  "Use this one": "Użyj tego",
+  "View file": "Zobacz plik",
+  "Delete": "Usuń",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Twój aktualny pasek wypłaty i wszystkie wgrane paski wypłaty.",
+  "Current pay stub": "Aktualny pasek wypłaty",
 }
 
 export default pl

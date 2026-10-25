@@ -427,6 +427,23 @@ const tl: Record<string, string> = {
   "What are my rights at work?": "Ano ang mga karapatan ko sa trabaho?",
   "Help me file a wage claim.": "Tulungan mo akong maghain ng reklamo sa sahod.",
   "Help me check a job offer.": "Tulungan mo akong suriin ang alok ng trabaho.",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your pay stubs are saved privately to your account. You can delete them anytime.": "Pribadong naka-save sa account mo ang mga slip ng sahod mo. Pwede mo po itong burahin kahit kailan.",
+  "Repeat": "Ulitin",
+  "Delete this pay stub and its photo? This can’t be undone.": "Buburahin po ba ang slip ng sahod na ito at ang litrato nito? Hindi na po ito maibabalik.",
+  "We couldn’t delete it. Try again.": "Hindi po namin ito nabura. Pakisubukan pong muli.",
+  "Upload history": "Kasaysayan ng upload",
+  "Every pay stub you upload is saved privately to your account. Only you can see it, and you can delete it anytime.": "Bawat slip ng sahod na i-upload mo ay pribadong naka-save sa account mo. Ikaw lang po ang makakakita nito, at pwede mo po itong burahin kahit kailan.",
+  "No uploads yet.": "Wala ka pa pong na-upload.",
+  "Current": "Kasalukuyan",
+  "Uploaded {date}": "Na-upload noong {date}",
+  "Pay date {date}": "Petsa ng sahod {date}",
+  "Use this one": "Gamitin ito",
+  "View file": "Tingnan ang file",
+  "Delete": "Burahin",
+  // Machine-translated with Muse; have a native speaker review.
+  "Your current pay stub and every pay stub you’ve uploaded.": "Ang kasalukuyan ninyong slip ng sahod at bawat slip ng sahod na na-upload ninyo.",
+  "Current pay stub": "Kasalukuyang slip ng sahod",
 }
 
 export default tl

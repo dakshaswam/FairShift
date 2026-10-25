@@ -1,6 +1,6 @@
 // Client for the FairShift API in server/. In dev, Vite proxies /api to it.
 import { speechLang } from "./i18n"
-import type { Paystub, ProcessedPaystub } from "./paystub-api"
+import type { Paystub, ProcessedPaystub, UploadSummary } from "./paystub-api"
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ""
 
@@ -316,5 +316,45 @@ export async function chatWithAssistant(
       const line = chunk.split("\n").find((l) => l.startsWith("data: "))
       if (line) onEvent(JSON.parse(line.slice(6)) as AssistantEvent)
     }
+  }
+}
+
+// --- pay stub upload history ---
+
+export type SavedUpload = UploadSummary & {
+  paystub: Paystub
+  summary: string | null
+  warnings: string[] | null
+  sent_text: string | null
+  language: string | null
+}
+
+export async function listUploads() {
+  return (await request<{ uploads: UploadSummary[] }>("/uploads")).uploads
+}
+
+export async function getUpload(id: string) {
+  return (await request<{ upload: SavedUpload }>(`/uploads/${id}`)).upload
+}
+
+export function deleteUpload(id: string) {
+  return request<{ ok: boolean }>(`/uploads/${id}`, { method: "DELETE" })
+}
+
+export const uploadFileUrl = (id: string) => `${API_BASE}/api/uploads/${id}/file`
+
+// A saved upload in the shape the chat and pay screens use for the current stub.
+export function savedToResult(saved: SavedUpload): ProcessedPaystub {
+  return {
+    upload_id: saved.id,
+    paystub: saved.paystub,
+    assistant_message: saved.summary ?? "",
+    warnings_display: saved.warnings ?? saved.paystub.warnings,
+    sent_text: saved.sent_text ?? "",
+    redaction_retries: 0,
+    forced: false,
+    source: "muse_live",
+    trace: [],
+    upload: saved,
   }
 }

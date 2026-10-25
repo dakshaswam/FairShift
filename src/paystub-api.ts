@@ -97,7 +97,26 @@ export async function extractPaystub(prepared: PreparedPaystub, approvedText: st
 }
 
 // Job pay comparisons are in US dollars, so only a dollar paystub rate can be compared.
+// One saved upload, as listed in the history.
+export type UploadSummary = {
+  id: string
+  created_at: string
+  file_name: string | null
+  content_type: string | null
+  employer_name: string | null
+  pay_period_start: string | null
+  pay_period_end: string | null
+  pay_date: string | null
+  currency: string | null
+  gross_pay: number | null
+  net_pay: number | null
+  regular_hourly_rate: number | null
+  hourly_wage_entered: number | null
+}
+
 export type ProcessedPaystub = PaystubResult & {
+  // The saved history entry, or null if saving failed (the result is still shown).
+  upload?: UploadSummary | null
   // Summary (assistant_message) and review notes in the worker's language.
   warnings_display: string[]
   sent_text: string
@@ -105,14 +124,15 @@ export type ProcessedPaystub = PaystubResult & {
   forced: boolean
 }
 
-// One request: local OCR and redaction, then an automatic send to Muse. There is
-// no manual approval step; the response includes the exact text that was sent.
+// One request to the FairShift server: it runs local OCR and redaction (Python
+// paystub service), sends the redacted text to Muse, and saves the file and the
+// result to the worker's upload history. The response includes the exact text sent.
 export async function processPaystub(file: File, signal: AbortSignal, language = "English"): Promise<ProcessedPaystub> {
   const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
   if (![".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"].includes(extension)) {
     throw new Error("Choose a PDF, PNG, JPEG, TIFF, BMP or WebP paystub.")
   }
-  const data = await responseData(await fetch("/api/paystubs/process", {
+  const data = await responseData(await fetch("/api/uploads", {
     method: "POST",
     credentials: "same-origin",
     headers: {
@@ -120,6 +140,7 @@ export async function processPaystub(file: File, signal: AbortSignal, language =
       "Content-Type": file.type || "application/octet-stream",
       "X-Document-Type": extension,
       "X-FairShift-Language": language,
+      "X-File-Name": encodeURIComponent(file.name.slice(0, 200)),
     },
     body: file,
     signal,
