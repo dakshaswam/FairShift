@@ -16,7 +16,7 @@ if (major > 22 || (major === 22 && minor >= 9)) ok(`Node ${process.versions.node
 else bad(`Node ${process.versions.node} is too old (the server needs 22.9 or newer)`, "Install Node 22 (the repo's .mise.toml pins it)")
 
 console.log("\nServer packages")
-for (const name of ["express"]) {
+for (const name of ["express", "tesseract.js", "sharp", "unpdf"]) {
   if (existsSync(`server/node_modules/${name}`)) ok(name)
   else bad(`${name} is not installed`, "cd server && npm install")
 }
@@ -42,10 +42,6 @@ if (!existsSync("server/.env")) {
   else console.log("  – Supabase is not configured; users and uploads are saved to server/data (fine for development)")
 }
 
-console.log("\n.env (paystub service)")
-const rootEnv = existsSync(".env") ? readFileSync(".env", "utf8") : ""
-if (/^\s*MUSE_API_KEY\s*=\s*\S+/m.test(rootEnv)) ok("MUSE_API_KEY is set")
-else bad("MUSE_API_KEY is missing from .env (paystub uploads will fail)", "copy .env.example to .env and add your Meta Model API key")
 
 async function get(url) {
   try {
@@ -70,15 +66,21 @@ else {
   if (health.body?.database) ok(`server saves users and uploads to: ${health.body.database}`)
 }
 
-console.log("\nPaystub service (http://127.0.0.1:8790)")
-const paystub = await get("http://127.0.0.1:8790/api/paystubs/health")
-if (!paystub) bad("the paystub service is not running", "npm run dev:paystub   (needs .venv; see README)")
+// Pay stubs are read inside the server unless PAYSTUB_SERVICE_URL points at the
+// optional Python service.
+const paystubUrl = (env.PAYSTUB_SERVICE_URL ?? "").trim()
+console.log(`\nPay stub reading (${paystubUrl ? `Python service at ${paystubUrl}` : "inside the server"})`)
+if (!paystubUrl) ok("the server reads pay stubs itself (OCR, redaction and Muse extraction in Node)")
 else {
-  ok("paystub service is running")
-  if (paystub.body?.ocr_available) ok("Tesseract OCR found")
-  else bad("Tesseract OCR is missing (photos and scans will fail)", "brew install tesseract")
-  if (paystub.body?.api_configured) ok("paystub service has MUSE_API_KEY loaded")
-  else bad("paystub service has no MUSE_API_KEY", "add it to .env, then restart npm run dev:paystub")
+  const paystub = await get(`${paystubUrl}/api/paystubs/health`)
+  if (!paystub) bad("the Python paystub service is not running", "npm run dev:paystub, or remove PAYSTUB_SERVICE_URL from server/.env")
+  else {
+    ok("Python paystub service is running")
+    if (paystub.body?.ocr_available) ok("Tesseract OCR found")
+    else bad("Tesseract OCR is missing (photos and scans will fail)", "brew install tesseract")
+    if (paystub.body?.api_configured) ok("paystub service has MUSE_API_KEY loaded")
+    else bad("paystub service has no MUSE_API_KEY", "add it to .env, then restart npm run dev:paystub")
+  }
 }
 
 console.log("\nFrontend proxy (http://localhost:8443/api → server)")

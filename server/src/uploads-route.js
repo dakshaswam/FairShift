@@ -1,6 +1,7 @@
-// Pay stub uploads for the signed-in worker. The file goes to the Python paystub
-// service (local OCR, redaction, Muse extraction) and is then saved, with its
-// results, to the worker's history.
+// Pay stub uploads for the signed-in worker. The file is read in this server
+// (OCR, redaction, Muse extraction; see ./paystub) and then saved, with its
+// results, to the worker's history. Set PAYSTUB_SERVICE_URL to use the Python
+// paystub service instead.
 //
 //   POST   /api/uploads             raw file body → processed result + saved entry
 //   GET    /api/uploads             the worker's uploads, newest first
@@ -10,9 +11,11 @@
 
 import express, { Router } from "express"
 import { requireUser } from "./auth.js"
+import { FairShiftError } from "./paystub/errors.js"
+import { processDocument } from "./paystub/pipeline.js"
 import { deleteUpload, getUpload, listUploads, saveUpload, uploadFile } from "./uploads.js"
 
-const PAYSTUB_URL = process.env.PAYSTUB_SERVICE_URL || "http://127.0.0.1:8790"
+const PAYSTUB_URL = process.env.PAYSTUB_SERVICE_URL
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TYPES = {
   ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -34,24 +37,19 @@ uploadsRouter.post(
       }
       const language = String(req.headers["x-fairshift-language"] ?? "English")
 
-      let response
-      try {
-        response = await fetch(`${PAYSTUB_URL}/api/paystubs/process`, {
-          method: "POST",
-          headers: {
-            "X-FairShift-Client": "paystub-ui",
-            "Content-Type": contentType,
-            "X-Document-Type": extension,
-            "X-FairShift-Language": language,
-          },
-          body: req.body,
-          signal: AbortSignal.timeout(5 * 60 * 1000),
-        })
-      } catch {
-        return res.status(502).json({ error: "The paystub service isn't running. Start it with `npm run dev:paystub`, then try again.", stage: "request" })
+      let result
+      if (PAYSTUB_URL) {
+        const forwarded = await forwardToPython(req.body, contentType, extension, language)
+        if (!forwarded.ok) return res.status(forwarded.status).json(forwarded.body)
+        result = forwarded.body
+      } else {
+        try {
+          result = await processDocument(req.body, extension, language)
+        } catch (error) {
+          if (!(error instanceof FairShiftError)) throw error
+          return res.status(error.status).json({ error: error.message, stage: error.stage })
+        }
       }
-      const result = await response.json().catch(() => null)
-      if (!response.ok || !result) return res.status(response.status || 502).json(result ?? { error: "Paystub processing failed.", stage: "request" })
 
       let upload = null
       try {
@@ -79,6 +77,28 @@ uploadsRouter.post(
     }
   },
 )
+
+async function forwardToPython(body, contentType, extension, language) {
+  let response
+  try {
+    response = await fetch(`${PAYSTUB_URL}/api/paystubs/process`, {
+      method: "POST",
+      headers: {
+        "X-FairShift-Client": "paystub-ui",
+        "Content-Type": contentType,
+        "X-Document-Type": extension,
+        "X-FairShift-Language": language,
+      },
+      body,
+      signal: AbortSignal.timeout(5 * 60 * 1000),
+    })
+  } catch {
+    return { ok: false, status: 502, body: { error: "The Python paystub service isn't running. Start it with `npm run dev:paystub`, or unset PAYSTUB_SERVICE_URL.", stage: "request" } }
+  }
+  const result = await response.json().catch(() => null)
+  if (!response.ok || !result) return { ok: false, status: response.status || 502, body: result ?? { error: "Paystub processing failed.", stage: "request" } }
+  return { ok: true, body: result }
+}
 
 uploadsRouter.get("/uploads", requireUser, async (req, res, next) => {
   try {

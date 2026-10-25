@@ -124,25 +124,66 @@ export type ProcessedPaystub = PaystubResult & {
   forced: boolean
 }
 
-// One request to the FairShift server: it runs local OCR and redaction (Python
-// paystub service), sends the redacted text to Muse, and saves the file and the
-// result to the worker's upload history. The response includes the exact text sent.
+// Hosted functions (Vercel) accept request bodies up to 4.5 MB, and phone photos
+// are often bigger. Large photos are re-encoded as JPEG with the long side capped
+// at 3000 px, which is all OCR needs (it enlarges smaller photos to that size).
+const MAX_UPLOAD_BYTES = 4_300_000
+const MAX_LONG_SIDE = 3000
+
+async function shrinkForUpload(file: File, extension: string): Promise<{ body: Blob; extension: string; name: string }> {
+  const decodable = [".png", ".jpg", ".jpeg", ".webp", ".bmp"].includes(extension)
+  if (!decodable || typeof createImageBitmap !== "function") {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error(extension === ".pdf"
+        ? "This PDF is larger than 4 MB. Take a photo of the pay stub instead."
+        : "This file is larger than 4 MB. Take a JPEG or PNG photo of the pay stub instead.")
+    }
+    return { body: file, extension, name: file.name }
+  }
+  const image = await createImageBitmap(file, { imageOrientation: "from-image" })
+  const longSide = Math.max(image.width, image.height)
+  if (file.size <= MAX_UPLOAD_BYTES && longSide <= MAX_LONG_SIDE) {
+    image.close()
+    return { body: file, extension, name: file.name }
+  }
+  let blob: Blob | null = null
+  for (const [side, quality] of [[MAX_LONG_SIDE, 0.9], [MAX_LONG_SIDE, 0.8], [2400, 0.8], [2000, 0.75]] as const) {
+    const scale = Math.min(1, side / longSide)
+    const canvas = document.createElement("canvas")
+    canvas.width = Math.round(image.width * scale)
+    canvas.height = Math.round(image.height * scale)
+    const context = canvas.getContext("2d")!
+    context.fillStyle = "#fff"
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality))
+    if (blob && blob.size <= MAX_UPLOAD_BYTES) break
+  }
+  image.close()
+  if (!blob || blob.size > MAX_UPLOAD_BYTES) throw new Error("This photo is too large to upload. Try a smaller photo.")
+  return { body: blob, extension: ".jpg", name: file.name.replace(/\.[^.]+$/, "") + ".jpg" }
+}
+
+// One request to the FairShift server: it reads the document (OCR and redaction),
+// sends the redacted text to Muse, and saves the file and the result to the
+// worker's upload history. The response includes the exact text sent.
 export async function processPaystub(file: File, signal: AbortSignal, language = "English"): Promise<ProcessedPaystub> {
-  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
-  if (![".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"].includes(extension)) {
+  const original = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
+  if (![".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"].includes(original)) {
     throw new Error("Choose a PDF, PNG, JPEG, TIFF, BMP or WebP paystub.")
   }
+  const { body, extension, name } = await shrinkForUpload(file, original)
   const data = await responseData(await fetch("/api/uploads", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       ...HEADERS,
-      "Content-Type": file.type || "application/octet-stream",
+      "Content-Type": body.type || file.type || "application/octet-stream",
       "X-Document-Type": extension,
       "X-FairShift-Language": language,
-      "X-File-Name": encodeURIComponent(file.name.slice(0, 200)),
+      "X-File-Name": encodeURIComponent(name.slice(0, 200)),
     },
-    body: file,
+    body,
     signal,
   }))
   if (!["muse_live", "mocked"].includes(data.source) || !data.paystub || typeof data.assistant_message !== "string"

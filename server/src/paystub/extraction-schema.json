@@ -1,0 +1,320 @@
+{
+ "$defs": {
+  "Deduction": {
+   "additionalProperties": false,
+   "properties": {
+    "label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "amount": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "label",
+    "amount"
+   ],
+   "type": "object"
+  },
+  "Earning": {
+   "additionalProperties": false,
+   "properties": {
+    "label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "amount": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "hours": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "hourly_rate": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "label",
+    "amount",
+    "hours",
+    "hourly_rate"
+   ],
+   "type": "object"
+  },
+  "Paystub": {
+   "additionalProperties": false,
+   "description": "Missing scalar values stay None. Decimal values serialize as strings.",
+   "properties": {
+    "employer_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "pay_period_start": {
+     "anyOf": [
+      {
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "pay_period_end": {
+     "anyOf": [
+      {
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "pay_date": {
+     "anyOf": [
+      {
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "currency": {
+     "anyOf": [
+      {
+       "pattern": "^[A-Z]{3}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "regular_hours": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "regular_hourly_rate": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "regular_pay": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "overtime_hours": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "overtime_hourly_rate": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "overtime_pay": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tips": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "gross_pay": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "deductions": {
+     "items": {
+      "$ref": "#/$defs/Deduction"
+     },
+     "type": "array"
+    },
+    "net_pay": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "other_earnings": {
+     "items": {
+      "$ref": "#/$defs/Earning"
+     },
+     "type": "array"
+    },
+    "warnings": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "employer_name",
+    "pay_period_start",
+    "pay_period_end",
+    "pay_date",
+    "currency",
+    "regular_hours",
+    "regular_hourly_rate",
+    "regular_pay",
+    "overtime_hours",
+    "overtime_hourly_rate",
+    "overtime_pay",
+    "tips",
+    "gross_pay",
+    "deductions",
+    "net_pay",
+    "other_earnings",
+    "warnings"
+   ],
+   "type": "object"
+  },
+  "Reconciliation": {
+   "additionalProperties": false,
+   "description": "Internal evidence only; these fields are not part of the public JSON.",
+   "properties": {
+    "all_current_deductions_listed": {
+     "type": "boolean"
+    },
+    "gross_minus_deductions_only": {
+     "type": "boolean"
+    },
+    "current_deductions_total": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "all_current_deductions_listed",
+    "gross_minus_deductions_only",
+    "current_deductions_total"
+   ],
+   "type": "object"
+  }
+ },
+ "additionalProperties": false,
+ "properties": {
+  "is_paystub": {
+   "type": "boolean"
+  },
+  "paystub": {
+   "$ref": "#/$defs/Paystub"
+  },
+  "reconciliation": {
+   "$ref": "#/$defs/Reconciliation"
+  }
+ },
+ "required": [
+  "is_paystub",
+  "paystub",
+  "reconciliation"
+ ],
+ "type": "object"
+}
