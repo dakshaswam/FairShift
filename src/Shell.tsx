@@ -11,8 +11,8 @@ import { Icon, type IconName } from "./ui"
 const NAV: { page: Page; label: string; short: string; icon: IconName }[] = [
   { page: "home", label: tk("Home"), short: tk("Home"), icon: "home" },
   { page: "pay", label: tk("Pay records"), short: tk("Pay"), icon: "file" },
-  { page: "help", label: tk("Get help"), short: tk("Help"), icon: "help" },
   { page: "assistant", label: tk("Ask FairShift"), short: tk("Ask"), icon: "chat" },
+  { page: "help", label: tk("Get help"), short: tk("Help"), icon: "help" },
 ]
 
 const section = (page: Page) => (page.startsWith("help") ? "help" : page === "upload" ? "pay" : page)
